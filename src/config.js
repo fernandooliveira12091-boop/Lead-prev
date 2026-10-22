@@ -7,6 +7,8 @@ const preenchido = (v) => (v && !/[<>]/.test(v) ? v : '');
 // Remove espaços e aspas colados sem querer junto com o valor.
 const limpo = (v) => (v ?? '').trim().replace(/^(["'])(.*)\1$/, '$2');
 const senhaPainel = limpo(env.ADMIN_TOKEN);
+// Aceita a connection string mesmo colada no formato psql ("psql 'postgresql://...'") ou entre aspas.
+const urlBanco = /postgres(?:ql)?:\/\/[^\s'"]+/.exec(env.DATABASE_URL ?? '')?.[0] ?? '';
 
 export const config = {
   port: Number(env.PORT ?? 3000),
@@ -52,6 +54,6 @@ export const config = {
   },
 
   // Postgres (ex.: Neon). Vazio = banco embutido em memória, só para testes e simulação.
-  databaseUrl: preenchido(env.DATABASE_URL),
+  databaseUrl: preenchido(urlBanco),
   campanhasPath: env.CAMPANHAS_PATH ?? 'data/campanhas.json',
 };

@@ -91,13 +91,29 @@ app.get('/', (_req, res) => res.redirect('/painel'));
 // Verificação de saúde usada pela hospedagem (sem dados, sem login).
 app.get('/saude', (_req, res) => res.json({ ok: true }));
 
+// Traduz os erros de conexão mais comuns (nenhum deles revela a senha).
+const ERROS_BANCO = {
+  ENOTFOUND: 'endereço do servidor não encontrado: a connection string está incompleta ou errada',
+  EAI_AGAIN: 'endereço do servidor não encontrado: a connection string está incompleta ou errada',
+  ECONNREFUSED: 'o servidor recusou a conexão',
+  ETIMEDOUT: 'o servidor não respondeu a tempo',
+  '28P01': 'senha do banco incorreta: copie a connection string pelo botão de copiar da Neon (não selecionando com o mouse, que copia ********)',
+  '28000': 'usuário do banco não autorizado',
+  '3D000': 'o banco indicado na connection string não existe (o nome deve ser neondb)',
+  ERR_INVALID_URL: 'a connection string não está num formato válido',
+};
+function explicarErroBanco(e) {
+  return ERROS_BANCO[e.code] ?? `erro ${e.code ?? ''} ${e.message ?? ''}`.trim();
+}
+
 // Erros inesperados (ex.: banco fora do ar): mensagem clara para quem usa, detalhe técnico só no log.
 app.use((err, req, res, _next) => {
-  const banco = ['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', '28P01', '3D000'].includes(err.code);
+  const banco = err.code in ERROS_BANCO || /^(08|28|3D)/.test(err.code ?? '');
   console.error(`Erro em ${req.method} ${req.path}:`, err.code ?? '', err.message);
   res.status(500).send(
     pagina('Erro', banco
-      ? '<div class="card erro"><b>Não foi possível acessar o banco de dados.</b> Confira a variável DATABASE_URL no Render: ela deve ser a connection string copiada da Neon (começa com postgresql://).</div>'
+      ? `<div class="card erro"><b>Não foi possível acessar o banco de dados:</b> ${esc(explicarErroBanco(err))}.<br>
+         Confira a variável DATABASE_URL no Render: ela deve ser a connection string copiada da Neon (começa com postgresql://).</div>`
       : '<div class="card erro"><b>Ocorreu um erro inesperado.</b> Tente de novo em instantes; se continuar, verifique os logs.</div>'),
   );
 });
@@ -106,19 +122,17 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
   if (!config.adminToken) {
     console.warn('ATENÇÃO: ADMIN_TOKEN ausente, com texto de exemplo ou com menos de 12 caracteres; o painel ficará bloqueado.');
   }
-  if (process.env.DATABASE_URL && !config.databaseUrl) console.warn('ATENÇÃO: DATABASE_URL contém o texto de exemplo; cole a connection string da Neon.');
+  if (process.env.DATABASE_URL && !config.databaseUrl) {
+    console.warn('ATENÇÃO: DATABASE_URL não contém uma connection string válida (deve ter postgresql://...); cole a da Neon.');
+  }
   if (!config.databaseUrl) {
     console.warn('ATENÇÃO: DATABASE_URL não definida; usando banco temporário em memória (os dados somem ao reiniciar).');
   }
   console.log(`Modo homologação: ${process.env.MODO_HOMOLOGACAO === '0' ? 'DESLIGADO' : 'ligado'}`);
+  const host = config.databaseUrl ? new URL(config.databaseUrl).hostname : '';
   consultar('SELECT 1')
-    .then(() => console.log(config.databaseUrl ? 'Banco de dados conectado.' : 'Banco temporário em memória pronto.'))
-    .catch((e) =>
-      console.error(
-        `ATENÇÃO: não foi possível conectar ao banco de dados (${e.code ?? e.message}). ` +
-          'Copie de novo a connection string na Neon (botão Connect) e cole em DATABASE_URL.',
-      ),
-    );
+    .then(() => console.log(config.databaseUrl ? `Banco de dados conectado (${host}).` : 'Banco temporário em memória pronto.'))
+    .catch((e) => console.error(`ATENÇÃO: não foi possível conectar ao banco de dados em "${host}": ${explicarErroBanco(e)}`));
   app.listen(config.port, () => console.log(`lead-prev ouvindo na porta ${config.port}`));
 }
 
