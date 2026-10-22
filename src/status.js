@@ -17,7 +17,10 @@ export function configuracao() {
       : config.whatsapp.provedor === '360dialog'
       ? { nome: 'WhatsApp', ok: !!(config.whatsapp.d360Key && config.whatsapp.webhookChave), falta: 'D360_API_KEY e WHATSAPP_WEBHOOK_CHAVE (16+ caracteres)' }
       : { nome: 'WhatsApp', ok: !!(config.meta.phoneNumberId && config.meta.accessToken), falta: 'WHATSAPP_PHONE_NUMBER_ID e META_ACCESS_TOKEN' },
-    { nome: 'Assinatura dos webhooks', ok: !!config.meta.appSecret, falta: 'META_APP_SECRET' },
+    // Com parceiro (YCloud/360dialog) o WhatsApp se autentica pela chave da URL; a assinatura da Meta fica só para o Instagram.
+    config.whatsapp.provedor === 'meta'
+      ? { nome: 'Assinatura dos webhooks', ok: !!config.meta.appSecret, falta: 'META_APP_SECRET' }
+      : { nome: 'Assinatura dos webhooks do Instagram', ok: !!config.instagram.appSecret, falta: 'INSTAGRAM_APP_SECRET (chave secreta do app do Instagram, na Meta)' },
     { nome: 'Token de verificação dos webhooks', ok: !!config.meta.verifyToken, falta: 'META_VERIFY_TOKEN' },
   ];
 }
