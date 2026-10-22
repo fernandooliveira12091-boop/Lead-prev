@@ -15,6 +15,7 @@ const digitos = (n) => String(n ?? '').replace(/\D/g, '');
 
 // A YCloud envia um evento por requisição, com nomes próprios; convertemos para o formato da Meta.
 async function processarEventoYcloud(ev) {
+  console.log(`Webhook da YCloud recebido: ${ev.type}`);
   if (ev.type === 'whatsapp.inbound_message.received') {
     const m = ev.whatsappInboundMessage ?? {};
     await tratarMensagem({ ...m, id: m.wamid ?? m.id, from: digitos(m.from) }, m.customerProfile?.name);

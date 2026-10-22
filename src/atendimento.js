@@ -2,7 +2,7 @@ import { config } from './config.js';
 import { atualizarLead, historico, leadExistente, obterOuCriarLead, registrarMensagem } from './db.js';
 import { campanhaPorPost, campanhaPorRef, extrairRef } from './campanhas.js';
 import { triar } from './ia.js';
-import { instagramDM, numeroCanonico, podeEnviar, whatsappMarcarLida, whatsappTexto } from './meta.js';
+import { instagramDM, mascarar, numeroCanonico, podeEnviar, whatsappMarcarLida, whatsappTexto } from './meta.js';
 
 // Espera o lead parar de digitar antes de responder (muita gente manda 3, 4 mensagens seguidas).
 const ESPERA_MS = Number(process.env.ESPERA_RESPOSTA_MS ?? 4000);
@@ -21,9 +21,15 @@ export async function receberMensagem({ canal, contato, nome, texto, origemRef, 
   // Contato sem origem rastreada (ex.: cliente atual no número em coexistência): o sistema não guarda nem responde nada;
   // o escritório atende pelo app como sempre.
   const rastreado = ref || origemPost || existente?.origem_ref || existente?.origem_post;
-  if (canal === 'whatsapp' && config.iaSomenteOrigemRastreada && !rastreado) return;
+  if (canal === 'whatsapp' && config.iaSomenteOrigemRastreada && !rastreado) {
+    console.log(`Mensagem de ${mascarar(contato)} sem código de origem (ref): fica para o atendimento pelo app`);
+    return;
+  }
   // Modo homologação: só contatos de teste são atendidos (nem a IA é chamada).
-  if (!podeEnviar(canal, [contato])) return;
+  if (!podeEnviar(canal, [contato])) {
+    console.log(`Modo homologação: ${mascarar(contato)} não está na lista de teste (${canal === 'whatsapp' ? 'WHATSAPP_TESTE' : 'INSTAGRAM_TESTE'}); mensagem ignorada`);
+    return;
+  }
 
   const lead = await obterOuCriarLead({ canal, contato, nome, origemRef: ref, origemPost });
   await registrarMensagem(lead.id, 'lead', texto);
@@ -90,6 +96,7 @@ async function responderUmaVez(leadId, canal, contato) {
   if (t.resposta.trim()) {
     await enviar(canal, contato, t.resposta);
     await registrarMensagem(leadId, 'ia', t.resposta);
+    console.log(`[lead ${leadId}] resposta da IA enviada`);
   }
 
   const dados = { ...JSON.parse(lead.dados_json ?? '{}'), fatos: t.fatos_relevantes };

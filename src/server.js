@@ -34,7 +34,10 @@ function webhook(secret, processar, { aceitaChave = false } = {}) {
     const autentico = aceitaChave && config.whatsapp.provedor !== 'meta'
       ? chaveValida(req.query.chave, config.whatsapp.webhookChave)
       : assinaturaValida(req.rawBody, req.get('x-hub-signature-256'), secret());
-    if (!autentico) return res.sendStatus(401);
+    if (!autentico) {
+      console.warn(`Webhook recusado em ${req.path}: ${aceitaChave && config.whatsapp.provedor !== 'meta' ? 'chave da URL ausente ou diferente de WHATSAPP_WEBHOOK_CHAVE' : 'assinatura da Meta inválida'}`);
+      return res.sendStatus(401);
+    }
     // A Meta exige resposta rápida; o atendimento roda em segundo plano.
     res.sendStatus(200);
     processar(req.body).catch((e) => console.error('Erro ao processar webhook', e));
