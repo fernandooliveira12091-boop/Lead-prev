@@ -227,3 +227,10 @@ test('quando o advogado responde pelo app (coexistência), a IA sai da conversa'
   await mensagemWhatsapp('5562933333333', 'Obrigada!', 'wamid.C2');
   assert.equal(chamadasClaude, antesClaude, 'IA não responde mais');
 });
+
+test('login aceita espaços colados sem querer e usuário em maiúsculas', async () => {
+  const h = { authorization: 'Basic ' + Buffer.from('ADMIN: senha-teste-longa ').toString('base64') };
+  assert.equal((await fetch(`${base}/painel`, { headers: h })).status, 200);
+  const errado = { authorization: 'Basic ' + Buffer.from('admin:outra-senha-qualquer').toString('base64') };
+  assert.equal((await fetch(`${base}/painel`, { headers: errado })).status, 401);
+});

@@ -13,10 +13,20 @@ export function autenticar(req, res, next) {
     req.usuario = 'api';
     return next();
   }
-  const [usuario, senha] = tipo === 'Basic' ? Buffer.from(cred ?? '', 'base64').toString().split(/:(.*)/s) : [];
-  if (!config.adminToken || usuario !== (process.env.PAINEL_USUARIO ?? 'admin') || senha !== config.adminToken) {
+  const [usuarioDigitado, senhaDigitada] = tipo === 'Basic' ? Buffer.from(cred ?? '', 'base64').toString().split(/:(.*)/s) : [];
+  const usuario = usuarioDigitado?.trim();
+  const senha = senhaDigitada?.trim();
+  const motivo = !config.adminToken
+    ? 'ADMIN_TOKEN não configurado (vazio, com texto de exemplo ou com menos de 12 caracteres)'
+    : usuario?.toLowerCase() !== config.painelUsuario.toLowerCase()
+      ? `usuário digitado diferente de PAINEL_USUARIO (esperado: "${config.painelUsuario}")`
+      : senha !== config.adminToken
+        ? `senha diferente do ADMIN_TOKEN (digitada com ${senha?.length ?? 0} caracteres; configurada com ${config.adminToken.length})`
+        : '';
+  if (motivo) {
+    if (tipo) console.warn(`Login recusado no painel: ${motivo}`);
     res.set('WWW-Authenticate', 'Basic realm="lead-prev", charset="UTF-8"');
-    return res.status(401).send('Acesso restrito');
+    return res.status(401).send('Acesso restrito: usuário ou senha incorretos.');
   }
   req.usuario = usuario;
   // Proteção contra envio de formulário a partir de outro site.

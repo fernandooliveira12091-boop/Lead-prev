@@ -4,10 +4,14 @@ const env = process.env;
 
 // Valores copiados do exemplo do guia (ex.: "<crie uma senha longa>") não podem ser usados.
 const preenchido = (v) => (v && !/[<>]/.test(v) ? v : '');
+// Remove espaços e aspas colados sem querer junto com o valor.
+const limpo = (v) => (v ?? '').trim().replace(/^(["'])(.*)\1$/, '$2');
+const senhaPainel = limpo(env.ADMIN_TOKEN);
 
 export const config = {
   port: Number(env.PORT ?? 3000),
-  adminToken: preenchido(env.ADMIN_TOKEN).length >= 12 ? env.ADMIN_TOKEN : '',
+  adminToken: preenchido(senhaPainel).length >= 12 ? senhaPainel : '',
+  painelUsuario: limpo(env.PAINEL_USUARIO) || 'admin',
 
   escritorio: {
     nome: env.ESCRITORIO_NOME ?? 'Escritório de Advocacia Previdenciária',
