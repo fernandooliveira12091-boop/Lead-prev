@@ -74,6 +74,12 @@ const ESQUEMA = `
     id text PRIMARY KEY,
     criado_em timestamptz NOT NULL DEFAULT now()
   );
+  CREATE TABLE IF NOT EXISTS tokens (
+    nome text PRIMARY KEY,               -- ex.: instagram
+    valor text NOT NULL,                 -- token renovado
+    origem_hash text NOT NULL,           -- hash do token configurado no Render que originou a renovação
+    renovado_em timestamptz NOT NULL DEFAULT now()
+  );
 `;
 
 let pronto;

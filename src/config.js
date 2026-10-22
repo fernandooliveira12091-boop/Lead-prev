@@ -41,7 +41,7 @@ export const config = {
 
   instagram: {
     accountId: env.INSTAGRAM_ACCOUNT_ID ?? '',
-    accessToken: env.INSTAGRAM_ACCESS_TOKEN ?? '',
+    accessToken: limpo(env.INSTAGRAM_ACCESS_TOKEN),
     appSecret: env.INSTAGRAM_APP_SECRET || env.META_APP_SECRET || '',
     graphHost: env.INSTAGRAM_GRAPH_HOST ?? 'graph.instagram.com',
   },

@@ -8,6 +8,7 @@ import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { enviar } from './atendimento.js';
 import { autenticar, dataHora, esc, pagina, painel } from './painel.js';
 import { paginaPrivacidade } from './privacidade.js';
+import { agendarManutencao } from './manutencao.js';
 
 const app = express();
 app.use(express.json({ verify: (req, _res, buf) => (req.rawBody = buf) }));
@@ -139,6 +140,7 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
     .then(() => console.log(config.databaseUrl ? `Banco de dados conectado (${host}).` : 'Banco temporário em memória pronto.'))
     .catch((e) => console.error(`ATENÇÃO: não foi possível conectar ao banco de dados em "${host}": ${explicarErroBanco(e)}`));
   app.listen(config.port, () => console.log(`lead-prev ouvindo na porta ${config.port}`));
+  agendarManutencao();
 }
 
 export { app };
