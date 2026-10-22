@@ -44,7 +44,15 @@ function webhook(secret, processar, { aceitaChave = false } = {}) {
   };
 }
 
-app.get('/webhook/whatsapp', verificar);
+// Abrir o endereço do webhook do parceiro no navegador confirma se a chave da URL está certa.
+app.get('/webhook/whatsapp', (req, res) => {
+  if (config.whatsapp.provedor === 'meta' || req.query['hub.mode']) return verificar(req, res);
+  const ok = chaveValida(req.query.chave, config.whatsapp.webhookChave);
+  console.log(`Endereço do webhook aberto no navegador: chave ${ok ? 'correta' : 'incorreta'}`);
+  res.status(ok ? 200 : 401).send(ok
+    ? 'Endereço do webhook correto. Cadastre exatamente este endereço na YCloud (Developers > Webhooks).'
+    : 'Chave incorreta: este endereço não corresponde a WHATSAPP_WEBHOOK_CHAVE no Render.');
+});
 app.post('/webhook/whatsapp', webhook(() => config.meta.appSecret, processarWebhookWhatsapp, { aceitaChave: true }));
 app.get('/webhook/instagram', verificar);
 app.post('/webhook/instagram', webhook(() => config.instagram.appSecret, processarWebhookInstagram));
