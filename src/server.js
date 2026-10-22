@@ -3,7 +3,7 @@ import { config } from './config.js';
 import { assinaturaValida } from './meta.js';
 import { processarWebhookWhatsapp } from './whatsapp.js';
 import { processarWebhookInstagram } from './instagram.js';
-import { atualizarLead, historico, leadPorId, listarLeads, registrarMensagem } from './db.js';
+import { atualizarLead, consultar, historico, leadPorId, listarLeads, registrarMensagem } from './db.js';
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { enviar } from './atendimento.js';
 import { autenticar, dataHora, esc, pagina, painel } from './painel.js';
@@ -91,6 +91,17 @@ app.get('/', (_req, res) => res.redirect('/painel'));
 // Verificação de saúde usada pela hospedagem (sem dados, sem login).
 app.get('/saude', (_req, res) => res.json({ ok: true }));
 
+// Erros inesperados (ex.: banco fora do ar): mensagem clara para quem usa, detalhe técnico só no log.
+app.use((err, req, res, _next) => {
+  const banco = ['ENOTFOUND', 'ECONNREFUSED', 'ETIMEDOUT', '28P01', '3D000'].includes(err.code);
+  console.error(`Erro em ${req.method} ${req.path}:`, err.code ?? '', err.message);
+  res.status(500).send(
+    pagina('Erro', banco
+      ? '<div class="card erro"><b>Não foi possível acessar o banco de dados.</b> Confira a variável DATABASE_URL no Render: ela deve ser a connection string copiada da Neon (começa com postgresql://).</div>'
+      : '<div class="card erro"><b>Ocorreu um erro inesperado.</b> Tente de novo em instantes; se continuar, verifique os logs.</div>'),
+  );
+});
+
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   if (!config.adminToken) {
     console.warn('ATENÇÃO: ADMIN_TOKEN ausente, com texto de exemplo ou com menos de 12 caracteres; o painel ficará bloqueado.');
@@ -100,6 +111,14 @@ if (process.argv[1] === new URL(import.meta.url).pathname) {
     console.warn('ATENÇÃO: DATABASE_URL não definida; usando banco temporário em memória (os dados somem ao reiniciar).');
   }
   console.log(`Modo homologação: ${process.env.MODO_HOMOLOGACAO === '0' ? 'DESLIGADO' : 'ligado'}`);
+  consultar('SELECT 1')
+    .then(() => console.log(config.databaseUrl ? 'Banco de dados conectado.' : 'Banco temporário em memória pronto.'))
+    .catch((e) =>
+      console.error(
+        `ATENÇÃO: não foi possível conectar ao banco de dados (${e.code ?? e.message}). ` +
+          'Copie de novo a connection string na Neon (botão Connect) e cole em DATABASE_URL.',
+      ),
+    );
   app.listen(config.port, () => console.log(`lead-prev ouvindo na porta ${config.port}`));
 }
 
