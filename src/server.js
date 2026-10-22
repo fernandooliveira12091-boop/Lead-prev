@@ -1,3 +1,4 @@
+import { timingSafeEqual } from 'node:crypto';
 import express from 'express';
 import { config } from './config.js';
 import { assinaturaValida } from './meta.js';
@@ -21,9 +22,19 @@ function verificar(req, res) {
   return ok ? res.send(req.query['hub.challenge']) : res.sendStatus(403);
 }
 
-function webhook(secret, processar) {
+function chaveValida(recebida, esperada) {
+  if (!esperada || typeof recebida !== 'string') return false;
+  const a = Buffer.from(recebida);
+  const b = Buffer.from(esperada);
+  return a.length === b.length && timingSafeEqual(a, b);
+}
+
+function webhook(secret, processar, { aceitaChave = false } = {}) {
   return (req, res) => {
-    if (!assinaturaValida(req.rawBody, req.get('x-hub-signature-256'), secret())) return res.sendStatus(401);
+    const autentico = aceitaChave && config.whatsapp.provedor === '360dialog'
+      ? chaveValida(req.query.chave, config.whatsapp.webhookChave)
+      : assinaturaValida(req.rawBody, req.get('x-hub-signature-256'), secret());
+    if (!autentico) return res.sendStatus(401);
     // A Meta exige resposta rápida; o atendimento roda em segundo plano.
     res.sendStatus(200);
     processar(req.body).catch((e) => console.error('Erro ao processar webhook', e));
@@ -31,7 +42,7 @@ function webhook(secret, processar) {
 }
 
 app.get('/webhook/whatsapp', verificar);
-app.post('/webhook/whatsapp', webhook(() => config.meta.appSecret, processarWebhookWhatsapp));
+app.post('/webhook/whatsapp', webhook(() => config.meta.appSecret, processarWebhookWhatsapp, { aceitaChave: true }));
 app.get('/webhook/instagram', verificar);
 app.post('/webhook/instagram', webhook(() => config.instagram.appSecret, processarWebhookInstagram));
 

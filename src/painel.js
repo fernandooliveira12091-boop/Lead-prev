@@ -4,6 +4,7 @@ import { comentarioPorId, comentariosDoPost, listarPosts, postPorMidia, resultad
 import { Analise, analisarConversa, salvarLeadManual } from './copiloto.js';
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { configuracao, testarConexoes } from './status.js';
+import { registrarWebhook360 } from './meta.js';
 import {
   analisarPost,
   enviarParaComentario,
@@ -229,7 +230,12 @@ function telaStatus(req, resultados) {
       <p class="muted">Política de privacidade</p><blockquote>${esc(base)}/privacidade</blockquote>
       <p class="muted">Exclusão de dados</p><blockquote>${esc(base)}/exclusao-de-dados</blockquote>
       <p class="muted">Webhook do Instagram</p><blockquote>${esc(base)}/webhook/instagram</blockquote>
-      <p class="muted">Webhook do WhatsApp</p><blockquote>${esc(base)}/webhook/whatsapp</blockquote>
+      ${config.whatsapp.provedor === '360dialog'
+        ? `<p class="muted">WhatsApp pela 360dialog (coexistência)</p>
+           ${config.whatsapp.webhookChave
+             ? `<form method="post" action="/painel/status/webhook360"><button class="sec">Cadastrar webhook do WhatsApp na 360dialog</button></form>`
+             : '<p>Defina WHATSAPP_WEBHOOK_CHAVE (16+ caracteres) no Render para liberar o cadastro do webhook.</p>'}`
+        : `<p class="muted">Webhook do WhatsApp</p><blockquote>${esc(base)}/webhook/whatsapp</blockquote>`}
       <p class="muted">Token de verificação: o valor de META_VERIFY_TOKEN no Render.</p></div>`,
   );
 }
@@ -361,4 +367,13 @@ painel.get('/links', async (req, res) => {
         ${semCodigo ? `<p class="muted">Leads sem código de origem: ${semCodigo.leads}.</p>` : ''}</div>`,
     ),
   );
+});
+
+painel.post('/status/webhook360', async (req, res) => {
+  try {
+    await registrarWebhook360(`${urlBase(req)}/webhook/whatsapp?chave=${encodeURIComponent(config.whatsapp.webhookChave)}`);
+    res.send(telaStatus(req, [{ nome: 'Webhook do WhatsApp (360dialog)', ok: true, detalhe: 'cadastrado' }]));
+  } catch (e) {
+    res.send(telaStatus(req, [{ nome: 'Webhook do WhatsApp (360dialog)', ok: false, detalhe: e.message.slice(0, 200) }]));
+  }
 });

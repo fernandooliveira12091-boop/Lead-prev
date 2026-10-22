@@ -28,20 +28,23 @@ function garantirPermissao(canal, destinos) {
   }
 }
 
-async function post(url, token, body) {
+async function requisitar(url, headers, body) {
   if (dryRun()) {
     console.log('[simulação] POST', url.replace(/\/\d{6,}\//, '/<id>/'), JSON.stringify(body).slice(0, 300));
     return {};
   }
-  if (!token) throw new Error('Token da Meta não configurado');
-  const r = await fetch(url, {
-    method: 'POST',
-    headers: { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  });
+  const r = await fetch(url, { method: 'POST', headers: { ...headers, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   const json = await r.json().catch(() => ({}));
-  if (!r.ok) throw new Error(`Meta API ${r.status}: ${json?.error?.message ?? 'erro desconhecido'}`);
+  if (!r.ok) {
+    const detalhe = json?.error?.message ?? json?.meta?.developer_message ?? json?.errors?.[0]?.details ?? 'erro desconhecido';
+    throw new Error(`Meta API ${r.status}: ${detalhe}`);
+  }
   return json;
+}
+
+async function post(url, token, body) {
+  if (!token && !dryRun()) throw new Error('Token da Meta não configurado');
+  return requisitar(url, { Authorization: `Bearer ${token}` }, body);
 }
 
 export async function get(url, token) {
@@ -65,9 +68,31 @@ export function assinaturaValida(rawBody, header, secret) {
 
 const waUrl = () => `https://graph.facebook.com/${config.meta.graphVersion}/${config.meta.phoneNumberId}/messages`;
 
+// Mesmo formato de mensagem nos dois provedores; muda só o endereço e a autenticação.
+function waPost(body) {
+  if (config.whatsapp.provedor === '360dialog') {
+    if (!config.whatsapp.d360Key && !dryRun()) throw new Error('Chave da 360dialog não configurada (D360_API_KEY)');
+    return requisitar(`${config.whatsapp.d360Base}/messages`, { 'D360-API-KEY': config.whatsapp.d360Key }, body);
+  }
+  return post(waUrl(), config.meta.accessToken, body);
+}
+
+/** Cadastra na 360dialog o endereço que recebe as mensagens (webhook). */
+export function registrarWebhook360(url) {
+  if (!config.whatsapp.d360Key) throw new Error('Chave da 360dialog não configurada (D360_API_KEY)');
+  return requisitar(`${config.whatsapp.d360Base}/v1/configs/webhook`, { 'D360-API-KEY': config.whatsapp.d360Key }, { url });
+}
+
+export async function consultarWebhook360() {
+  const r = await fetch(`${config.whatsapp.d360Base}/v1/configs/webhook`, { headers: { 'D360-API-KEY': config.whatsapp.d360Key } });
+  const json = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(`360dialog ${r.status}: ${r.status === 401 ? 'chave da 360dialog inválida' : JSON.stringify(json).slice(0, 150)}`);
+  return json;
+}
+
 export function whatsappTexto(para, texto) {
   garantirPermissao('whatsapp', [para]);
-  return post(waUrl(), config.meta.accessToken, {
+  return waPost({
     messaging_product: 'whatsapp',
     to: para,
     type: 'text',
@@ -78,7 +103,7 @@ export function whatsappTexto(para, texto) {
 // Fora da janela de 24h após a última mensagem do lead, o WhatsApp só permite templates aprovados.
 export function whatsappTemplate(para, nome, idioma, parametros = []) {
   garantirPermissao('whatsapp', [para]);
-  return post(waUrl(), config.meta.accessToken, {
+  return waPost({
     messaging_product: 'whatsapp',
     to: para,
     type: 'template',
@@ -93,7 +118,7 @@ export function whatsappTemplate(para, nome, idioma, parametros = []) {
 }
 
 export function whatsappMarcarLida(messageId) {
-  return post(waUrl(), config.meta.accessToken, {
+  return waPost({
     messaging_product: 'whatsapp',
     status: 'read',
     message_id: messageId,

@@ -39,6 +39,15 @@ export const config = {
     whatsappNumero: env.WHATSAPP_NUMERO ?? '',
   },
 
+  // WhatsApp pela Meta direto ("meta") ou por parceiro oficial com coexistência ("360dialog").
+  whatsapp: {
+    provedor: env.WHATSAPP_PROVEDOR === '360dialog' ? '360dialog' : 'meta',
+    d360Key: limpo(env.D360_API_KEY),
+    d360Base: (env.D360_API_URL ?? 'https://waba-v2.360dialog.io').replace(/\/$/, ''),
+    // A 360dialog não assina os webhooks como a Meta; a autenticidade vem desta chave secreta na URL.
+    webhookChave: limpo(env.WHATSAPP_WEBHOOK_CHAVE).length >= 16 ? limpo(env.WHATSAPP_WEBHOOK_CHAVE) : '',
+  },
+
   instagram: {
     accountId: env.INSTAGRAM_ACCOUNT_ID ?? '',
     accessToken: limpo(env.INSTAGRAM_ACCESS_TOKEN),
