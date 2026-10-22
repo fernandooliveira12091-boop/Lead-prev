@@ -56,3 +56,13 @@ test('senha e banco com texto de exemplo do guia são recusados', async () => {
   assert.equal(ler({ ADMIN_TOKEN: 'curta', DATABASE_URL: '' }), '["",""]');
   assert.equal(ler({ ADMIN_TOKEN: 'Cafe-Rio-Lapis-Azul-2026', DATABASE_URL: 'postgresql://u:p@h/db' }), '["Cafe-Rio-Lapis-Azul-2026","postgresql://u:p@h/db"]');
 });
+
+test('número com e sem o nono dígito é reconhecido como o mesmo na lista de teste', async () => {
+  const { numeroCanonico, podeEnviar } = await import('../src/meta.js');
+  assert.equal(numeroCanonico('5561991658755'), numeroCanonico('556191658755'));
+  assert.equal(numeroCanonico('+55 (61) 99165-8755'), '556191658755');
+  process.env.MODO_HOMOLOGACAO = '1';
+  process.env.WHATSAPP_TESTE = '5561988887777';
+  assert.ok(podeEnviar('whatsapp', ['556188887777']));
+  assert.ok(!podeEnviar('whatsapp', ['556188880000']));
+});

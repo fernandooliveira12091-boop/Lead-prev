@@ -2,7 +2,7 @@ import { config } from './config.js';
 import { atualizarLead, historico, leadExistente, obterOuCriarLead, registrarMensagem } from './db.js';
 import { campanhaPorPost, campanhaPorRef, extrairRef } from './campanhas.js';
 import { triar } from './ia.js';
-import { instagramDM, podeEnviar, whatsappMarcarLida, whatsappTexto } from './meta.js';
+import { instagramDM, numeroCanonico, podeEnviar, whatsappMarcarLida, whatsappTexto } from './meta.js';
 
 // Espera o lead parar de digitar antes de responder (muita gente manda 3, 4 mensagens seguidas).
 const ESPERA_MS = Number(process.env.ESPERA_RESPOSTA_MS ?? 4000);
@@ -117,7 +117,7 @@ export function enviar(canal, contato, texto) {
 
 async function avisarAdvogado(lead, campanha) {
   // Em coexistência o advogado já vê a conversa no app; não há como mandar aviso para o próprio número.
-  const destino = config.escritorio.whatsappAdvogado !== config.meta.whatsappNumero ? config.escritorio.whatsappAdvogado : '';
+  const destino = numeroCanonico(config.escritorio.whatsappAdvogado) !== numeroCanonico(config.meta.whatsappNumero) ? config.escritorio.whatsappAdvogado : '';
   const contato = lead.canal === 'whatsapp' ? `https://wa.me/${lead.contato}` : `Instagram (id ${lead.contato})`;
   const fatos = JSON.parse(lead.dados_json ?? '{}').fatos ?? [];
   const texto = [

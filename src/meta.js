@@ -8,13 +8,21 @@ export class EnvioBloqueado extends Error {}
 
 // Modo homologação (padrão): só envia para os contatos de teste listados no .env.
 // Para atender o público, é preciso desligar explicitamente: MODO_HOMOLOGACAO=0.
+// Celulares brasileiros antigos aparecem no WhatsApp sem o nono dígito (55 61 9165-8755 = 55 61 99165-8755).
+// Para comparar números, usa-se a forma sem o 9.
+export function numeroCanonico(n) {
+  const d = String(n ?? '').replace(/\D/g, '');
+  return /^55\d{2}9\d{8}$/.test(d) ? d.slice(0, 4) + d.slice(5) : d;
+}
+
 export function podeEnviar(canal, destinos) {
   if (process.env.MODO_HOMOLOGACAO === '0') return true;
+  const norm = (s) => (canal === 'whatsapp' ? numeroCanonico(s) : String(s).replace(/^@/, '').toLowerCase());
   // O aviso interno ao advogado não é mensagem a lead.
-  if (canal === 'whatsapp' && destinos.includes(config.escritorio.whatsappAdvogado) && config.escritorio.whatsappAdvogado) return true;
+  if (canal === 'whatsapp' && config.escritorio.whatsappAdvogado && destinos.some((d) => norm(d) === norm(config.escritorio.whatsappAdvogado))) return true;
   const lista = (canal === 'whatsapp' ? process.env.WHATSAPP_TESTE : process.env.INSTAGRAM_TESTE) ?? '';
-  const permitidos = new Set(lista.split(',').map((s) => s.trim().replace(/^@/, '').toLowerCase()).filter(Boolean));
-  return destinos.filter(Boolean).some((d) => permitidos.has(String(d).replace(/^@/, '').toLowerCase()));
+  const permitidos = new Set(lista.split(',').map((s) => s.trim()).filter(Boolean).map(norm));
+  return destinos.filter(Boolean).some((d) => permitidos.has(norm(d)));
 }
 
 export function mascarar(s) {
