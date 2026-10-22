@@ -3,6 +3,7 @@ import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { classificarComentarios } from './classificador.js';
 import {
   atualizarComentario,
+  consultar,
   comentarioPorId,
   comentariosSemClassificacao,
   inserirComentarios,
@@ -78,7 +79,26 @@ export async function analisarPost({ entrada, ref, tema }) {
   const classificados = await classificarPendentes(post);
   await marcarPostAnalisado(midia.id);
 
-  return { post, totalComentarios: comentarios.length, novos: novos.length, classificados };
+  return { post, totalComentarios: comentarios.length, novos: novos.length, classificados, noInstagram: midia.comments_count };
+}
+
+/** Texto do resultado da busca, explicando quando a API devolve menos comentários do que o post tem. */
+export function resumoBusca(r) {
+  let txt = `${r.totalComentarios} comentário(s) encontrado(s), ${r.novos} novo(s), ${r.classificados} classificado(s).`;
+  if (typeof r.noInstagram === 'number') {
+    txt += ` O Instagram informa ${r.noInstagram} comentário(s) neste post.`;
+    if (r.noInstagram > r.totalComentarios) {
+      txt +=
+        ' A diferença acontece enquanto o app da Meta está em modo de desenvolvimento: só aparecem comentários de contas' +
+        ' de teste do app (ou respostas dentro de outros comentários, que o sistema ignora). Ao publicar o app, os demais aparecem.';
+    }
+  }
+  return txt;
+}
+
+export async function removerPost(mediaId) {
+  await consultar('DELETE FROM comentarios WHERE media_id = $1', [mediaId]);
+  await consultar('DELETE FROM posts WHERE media_id = $1', [mediaId]);
 }
 
 export async function classificarPendentes(post) {

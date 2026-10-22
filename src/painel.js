@@ -2,7 +2,15 @@ import express from 'express';
 import { config } from './config.js';
 import { comentarioPorId, comentariosDoPost, listarPosts, postPorMidia } from './db.js';
 import { configuracao, testarConexoes } from './status.js';
-import { analisarPost, enviarParaComentario, ErroUsuario, ignorarComentario, prazoRespostaPrivada } from './posts.js';
+import {
+  analisarPost,
+  enviarParaComentario,
+  ErroUsuario,
+  ignorarComentario,
+  prazoRespostaPrivada,
+  removerPost,
+  resumoBusca,
+} from './posts.js';
 
 export const painel = express.Router();
 painel.use(express.urlencoded({ extended: false }));
@@ -111,7 +119,7 @@ painel.get('/', async (req, res) => {
 painel.post('/posts', async (req, res) => {
   try {
     const r = await analisarPost({ entrada: req.body.entrada, ref: req.body.ref, tema: req.body.tema });
-    const ok = `${r.totalComentarios} comentários encontrados, ${r.novos} novos, ${r.classificados} classificados.`;
+    const ok = resumoBusca(r);
     res.redirect(303, `/painel/posts/${encodeURIComponent(r.post.media_id)}?ok=${encodeURIComponent(ok)}`);
   } catch (e) {
     if (!(e instanceof ErroUsuario)) console.error('Erro ao analisar post:', e.message);
@@ -123,7 +131,7 @@ painel.post('/posts/:mediaId/atualizar', async (req, res) => {
   const destino = `/painel/posts/${encodeURIComponent(req.params.mediaId)}`;
   try {
     const r = await analisarPost({ entrada: req.params.mediaId });
-    res.redirect(303, `${destino}?ok=${encodeURIComponent(`${r.novos} comentários novos, ${r.classificados} classificados.`)}`);
+    res.redirect(303, `${destino}?ok=${encodeURIComponent(resumoBusca(r))}`);
   } catch (e) {
     res.redirect(303, `${destino}?erro=${encodeURIComponent(e.message)}`);
   }
@@ -161,7 +169,10 @@ painel.get('/posts/:mediaId', async (req, res) => {
       post.ref,
       `<h1>${esc(post.ref)} · ${esc(post.tema)}</h1>${alerta(req)}
       <p class="linha">${post.permalink ? `<a href="${esc(post.permalink)}" target="_blank" rel="noopener">Abrir no Instagram</a>` : ''}
-        <form method="post" action="/painel/posts/${esc(post.media_id)}/atualizar"><button class="sec">Buscar comentários novos</button></form></p>
+        <form method="post" action="/painel/posts/${esc(post.media_id)}/atualizar"><button class="sec">Buscar comentários novos</button></form>
+        <form method="post" action="/painel/posts/${esc(post.media_id)}/remover"
+          onsubmit="return confirm('Remover este post e seus comentários do painel? Os leads já criados continuam salvos e o código ${esc(post.ref)} fica livre.')">
+          <button class="sec">Remover do painel</button></form></p>
       <h2>Para aprovar (${pendentes.length})</h2>
       ${pendentes.map(cartaoComentario).join('') || '<p class="muted">Nenhum comentário quente ou morno aguardando.</p>'}
       <details><summary>Demais comentários (${demais.length})</summary>${demais.map(cartaoComentario).join('')}</details>`,
@@ -223,3 +234,9 @@ function telaStatus(req, resultados) {
 
 painel.get('/status', (req, res) => res.send(telaStatus(req)));
 painel.post('/status/testar', async (req, res) => res.send(telaStatus(req, await testarConexoes())));
+
+painel.post('/posts/:mediaId/remover', async (req, res) => {
+  const post = await postPorMidia(req.params.mediaId);
+  if (post) await removerPost(post.media_id);
+  res.redirect(303, `/painel?ok=${encodeURIComponent(post ? `Post ${post.ref} removido do painel; o código está livre de novo.` : 'Post não encontrado.')}`);
+});

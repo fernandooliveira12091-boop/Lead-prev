@@ -257,3 +257,14 @@ test('tela de conexões mostra o que está configurado e testa a IA', async () =
   assert.equal(chamadasClaude, antes + 1);
   assert.match(html, /IA \(Claude\)<\/b><\/td><td>respondeu/);
 });
+
+test('mostra quantos comentários o Instagram informa e permite remover o post do painel', async () => {
+  const { resumoBusca } = await import('../src/posts.js');
+  assert.match(resumoBusca({ totalComentarios: 0, novos: 0, classificados: 0, noInstagram: 5 }), /informa 5 .*modo de desenvolvimento/);
+  assert.doesNotMatch(resumoBusca({ totalComentarios: 5, novos: 5, classificados: 5, noInstagram: 5 }), /desenvolvimento/);
+  const r = await fetch(`${base}/painel/posts/178001/remover`, form({}));
+  assert.match(decodeURIComponent(r.headers.get('location')), /AR001 removido/);
+  assert.equal(await comentarioPorId('c1'), undefined);
+  const lead = (await listarLeads()).find((l) => l.contato === 'ig-maria');
+  assert.ok(lead, 'leads continuam salvos');
+});
