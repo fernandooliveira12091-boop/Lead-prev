@@ -1,0 +1,25 @@
+{
+  "name": "lead-prev",
+  "version": "0.1.0",
+  "description": "Gerador de leads para direito previdenciário: Instagram -> WhatsApp Business com triagem por IA",
+  "type": "module",
+  "main": "src/server.js",
+  "scripts": {
+    "start": "node --disable-warning=ExperimentalWarning src/server.js",
+    "dev": "node --disable-warning=ExperimentalWarning --watch src/server.js",
+    "followup": "node --disable-warning=ExperimentalWarning scripts/followup.js",
+    "simular": "node --disable-warning=ExperimentalWarning scripts/simular.js",
+    "test": "node --test"
+  },
+  "engines": {
+    "node": ">=22.13"
+  },
+  "license": "UNLICENSED",
+  "private": true,
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.1.0",
+    "dotenv": "^18.0.8",
+    "express": "^5.3.0",
+    "zod": "^4.6.7"
+  }
+}
