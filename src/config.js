@@ -8,7 +8,8 @@ const preenchido = (v) => (v && !/[<>]/.test(v) ? v : '');
 const limpo = (v) => (v ?? '').trim().replace(/^(["'])(.*)\1$/, '$2');
 const senhaPainel = limpo(env.ADMIN_TOKEN);
 // Aceita a connection string mesmo colada no formato psql ("psql 'postgresql://...'") ou entre aspas.
-const urlBanco = /postgres(?:ql)?:\/\/[^\s'"]+/.exec(env.DATABASE_URL ?? '')?.[0] ?? '';
+// sslmode=require já funciona como verify-full no pg; explicitar evita o aviso de segurança no log.
+const urlBanco = (/postgres(?:ql)?:\/\/[^\s'"]+/.exec(env.DATABASE_URL ?? '')?.[0] ?? '').replace(/sslmode=(prefer|require|verify-ca)\b/, 'sslmode=verify-full');
 
 export const config = {
   port: Number(env.PORT ?? 3000),
