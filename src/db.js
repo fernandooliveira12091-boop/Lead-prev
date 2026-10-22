@@ -83,6 +83,10 @@ export function obterOuCriarLead({ canal, contato, nome, origemRef, origemPost }
   return db.prepare('SELECT * FROM leads WHERE canal = ? AND contato = ?').get(canal, contato);
 }
 
+export function leadExistente(canal, contato) {
+  return db.prepare('SELECT * FROM leads WHERE canal = ? AND contato = ?').get(canal, contato);
+}
+
 export function registrarMensagem(leadId, autor, texto) {
   db.prepare('INSERT INTO mensagens (lead_id, autor, texto) VALUES (?, ?, ?)').run(leadId, autor, texto);
   const coluna = autor === 'lead' ? 'ultima_msg_lead' : 'ultima_msg_escritorio';

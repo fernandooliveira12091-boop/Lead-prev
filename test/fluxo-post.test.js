@@ -195,3 +195,36 @@ test('mensagem repetida da Meta é ignorada', async () => {
   await mensagemWhatsapp('5562911111111', 'SAIR', 'wamid.A2');
   assert.equal(historico(lead.id, 100).length, n);
 });
+
+test('cliente atual (sem post de origem) não é atendido pela IA nem registrado', async () => {
+  const antesClaude = chamadasClaude;
+  const antesEnvios = enviados.length;
+  process.env.WHATSAPP_TESTE = '5562911111111,5562922222222';
+  await mensagemWhatsapp('5562922222222', 'Bom dia doutor, e o meu processo?', 'wamid.B1');
+  assert.equal(chamadasClaude, antesClaude);
+  assert.equal(enviados.length, antesEnvios, 'nem a confirmação de leitura é enviada');
+  assert.equal(listarLeads().find((l) => l.contato === '5562922222222'), undefined);
+});
+
+async function ecoDoApp(para, texto, id) {
+  const payload = { entry: [{ changes: [{ field: 'smb_message_echoes', value: { message_echoes: [{ from: '5562900000000', to: para, id, type: 'text', text: { body: texto } }] } }] }] };
+  process.env.DRY_RUN = '1';
+  await fetch(`${base}/webhook/whatsapp`, { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(payload) });
+  delete process.env.DRY_RUN;
+  await esperar(50);
+}
+
+test('quando o advogado responde pelo app (coexistência), a IA sai da conversa', async () => {
+  process.env.WHATSAPP_TESTE = '5562911111111,5562933333333';
+  await mensagemWhatsapp('5562933333333', 'Oi, vi o post (ref:AR001)', 'wamid.C1');
+  const lead = listarLeads().find((l) => l.contato === '5562933333333');
+  assert.equal(lead.ia_ativa, 1);
+  await ecoDoApp('5562933333333', 'Olá, aqui é o Fernando. Vou te ajudar.', 'wamid.ECO1');
+  const depois = listarLeads().find((l) => l.contato === '5562933333333');
+  assert.equal(depois.ia_ativa, 0);
+  assert.equal(depois.status, 'com_advogado');
+  assert.equal(historico(lead.id).at(-1).autor, 'humano');
+  const antesClaude = chamadasClaude;
+  await mensagemWhatsapp('5562933333333', 'Obrigada!', 'wamid.C2');
+  assert.equal(chamadasClaude, antesClaude, 'IA não responde mais');
+});

@@ -13,13 +13,13 @@ test('extrai a ref do post a partir do texto do wa.me', () => {
 });
 
 test('link do WhatsApp carrega a ref', () => {
-  const c = campanhaPorRef('bpc01');
+  const c = campanhaPorRef('ar002');
   assert.ok(c);
-  assert.equal(extrairRef(decodeURIComponent(linkWhatsapp(c).split('text=')[1])), 'BPC01');
+  assert.equal(extrairRef(decodeURIComponent(linkWhatsapp(c).split('text=')[1])), 'AR002');
 });
 
 test('palavra-chave no comentário ignora acentos e maiúsculas', () => {
-  const c = campanhaPorRef('REV01');
+  const c = { palavrasChave: ['revisao'] };
   assert.ok(comentarioDisparaResposta(c, 'Quero a REVISÃO!'));
   assert.ok(!comentarioDisparaResposta(c, 'que post legal'));
 });

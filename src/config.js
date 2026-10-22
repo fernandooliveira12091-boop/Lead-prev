@@ -13,6 +13,10 @@ export const config = {
     whatsappAdvogado: env.ADVOGADO_WHATSAPP ?? '',
   },
 
+  // Com o número em coexistência (app + API), clientes atuais também escrevem para ele.
+  // A IA só atende quem chegou por um post/anúncio rastreado; o resto fica para o escritório no app.
+  iaSomenteOrigemRastreada: env.IA_SOMENTE_ORIGEM_RASTREADA !== '0',
+
   claude: {
     model: env.CLAUDE_MODEL ?? 'claude-opus-5-5',
   },

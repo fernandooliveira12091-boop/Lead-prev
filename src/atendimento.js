@@ -1,8 +1,8 @@
 import { config } from './config.js';
-import { atualizarLead, historico, obterOuCriarLead, registrarMensagem } from './db.js';
+import { atualizarLead, historico, leadExistente, obterOuCriarLead, registrarMensagem } from './db.js';
 import { campanhaPorPost, campanhaPorRef, extrairRef } from './campanhas.js';
 import { triar } from './ia.js';
-import { instagramDM, whatsappTexto } from './meta.js';
+import { instagramDM, podeEnviar, whatsappMarcarLida, whatsappTexto } from './meta.js';
 
 // Espera o lead parar de digitar antes de responder (muita gente manda 3, 4 mensagens seguidas).
 const ESPERA_MS = Number(process.env.ESPERA_RESPOSTA_MS ?? 4000);
@@ -14,10 +14,20 @@ const emAndamento = new Map();
 const PEDIDO_PARAR = /^\s*(sair|parar|pare|stop|cancelar|descadastrar|n[aã]o quero mais( mensagens)?)\s*[.!]*\s*$/i;
 const PEDIDO_HUMANO = /\b(atendente|humano|falar com (o |a |um |uma )?(advogad[oa]|doutor[a]?|dr\.?|dra\.?|pessoa))\b/i;
 
-export async function receberMensagem({ canal, contato, nome, texto, origemRef, origemPost }) {
+export async function receberMensagem({ canal, contato, nome, texto, origemRef, origemPost, mensagemId }) {
   const ref = origemRef ?? extrairRef(texto);
+  const existente = leadExistente(canal, contato);
+
+  // Contato sem origem rastreada (ex.: cliente atual no número em coexistência): o sistema não guarda nem responde nada;
+  // o escritório atende pelo app como sempre.
+  const rastreado = ref || origemPost || existente?.origem_ref || existente?.origem_post;
+  if (canal === 'whatsapp' && config.iaSomenteOrigemRastreada && !rastreado) return;
+  // Modo homologação: só contatos de teste são atendidos (nem a IA é chamada).
+  if (!podeEnviar(canal, [contato])) return;
+
   const lead = obterOuCriarLead({ canal, contato, nome, origemRef: ref, origemPost });
   registrarMensagem(lead.id, 'lead', texto);
+  if (canal === 'whatsapp' && mensagemId) whatsappMarcarLida(mensagemId).catch(() => {});
 
   if (PEDIDO_PARAR.test(texto)) {
     atualizarLead(lead.id, { status: 'optout', ia_ativa: 0 });
@@ -106,7 +116,8 @@ export function enviar(canal, contato, texto) {
 }
 
 async function avisarAdvogado(lead, campanha) {
-  const destino = config.escritorio.whatsappAdvogado;
+  // Em coexistência o advogado já vê a conversa no app; não há como mandar aviso para o próprio número.
+  const destino = config.escritorio.whatsappAdvogado !== config.meta.whatsappNumero ? config.escritorio.whatsappAdvogado : '';
   const contato = lead.canal === 'whatsapp' ? `https://wa.me/${lead.contato}` : `Instagram (id ${lead.contato})`;
   const fatos = JSON.parse(lead.dados_json ?? '{}').fatos ?? [];
   const texto = [

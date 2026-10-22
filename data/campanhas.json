@@ -1,37 +1,37 @@
 {
-  "_comoUsar": "Cada post do Instagram vira uma campanha. 'ref' vai no link do WhatsApp (wa.me) e identifica de qual post o lead veio. 'postIds' são os IDs de mídia do Instagram (para responder comentários). 'palavrasChave' disparam a resposta automática no comentário.",
+  "_comoUsar": "Prefira cadastrar os posts pelo painel (/painel). Este arquivo serve para links usados fora de um post específico (bio, stories, anúncios). 'ref' vai no link do WhatsApp e identifica a origem; 'postIds' são IDs de mídia do Instagram.",
   "campanhas": [
     {
-      "ref": "BPC01",
-      "tema": "bpc_loas",
-      "titulo": "BPC/LOAS para idosos e pessoas com deficiência",
+      "ref": "AR001",
+      "tema": "aposentadoria_rural",
+      "titulo": "Aposentadoria rural: documentos",
       "postIds": [],
-      "palavrasChave": ["bpc", "loas", "quero", "eu"],
-      "mensagemInicial": "Olá! Vi o post sobre BPC/LOAS e quero saber se tenho direito."
+      "palavrasChave": [],
+      "mensagemInicial": "Olá! Vi a publicação sobre documentos da aposentadoria rural e gostaria de conversar."
     },
     {
-      "ref": "APO01",
-      "tema": "aposentadoria",
-      "titulo": "Quanto tempo falta para você se aposentar",
+      "ref": "AR002",
+      "tema": "aposentadoria_rural",
+      "titulo": "Aposentadoria rural: negativa do INSS",
       "postIds": [],
-      "palavrasChave": ["aposentar", "aposentadoria", "quero", "eu"],
-      "mensagemInicial": "Olá! Vi o post sobre aposentadoria e quero saber quanto tempo falta para mim."
+      "palavrasChave": [],
+      "mensagemInicial": "Olá! Vi a publicação sobre aposentadoria rural negada pelo INSS e gostaria de conversar."
     },
     {
-      "ref": "INC01",
-      "tema": "auxilio_incapacidade",
-      "titulo": "Auxílio-doença negado: o que fazer",
+      "ref": "SMR001",
+      "tema": "salario_maternidade_rural",
+      "titulo": "Salário-maternidade rural: requisitos",
       "postIds": [],
-      "palavrasChave": ["negado", "auxilio", "pericia", "quero"],
-      "mensagemInicial": "Olá! Vi o post sobre auxílio-doença negado e preciso de ajuda."
+      "palavrasChave": [],
+      "mensagemInicial": "Olá! Vi a publicação sobre salário-maternidade rural e gostaria de conversar."
     },
     {
-      "ref": "REV01",
-      "tema": "revisao",
-      "titulo": "Revisão de aposentadoria",
+      "ref": "SMR002",
+      "tema": "salario_maternidade_rural",
+      "titulo": "Salário-maternidade rural: pedido negado",
       "postIds": [],
-      "palavrasChave": ["revisao", "revisão", "quero"],
-      "mensagemInicial": "Olá! Vi o post sobre revisão de aposentadoria e quero analisar a minha."
+      "palavrasChave": [],
+      "mensagemInicial": "Olá! Vi a publicação sobre salário-maternidade rural negado e gostaria de conversar."
     }
   ]
 }
