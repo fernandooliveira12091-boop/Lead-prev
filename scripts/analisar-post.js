@@ -12,7 +12,7 @@ if (!entrada || !ref) {
 try {
   const r = await analisarPost({ entrada, ref, tema });
   console.log(`${r.post.ref} · ${r.post.tema}: ${r.totalComentarios} comentários (${r.novos} novos, ${r.classificados} classificados)\n`);
-  for (const c of comentariosDoPost(r.post.media_id).filter((c) => ['quente', 'morno'].includes(c.temperatura))) {
+  for (const c of (await comentariosDoPost(r.post.media_id)).filter((c) => ['quente', 'morno'].includes(c.temperatura))) {
     console.log(`[${c.temperatura.toUpperCase()}] @${c.autor_usuario ?? '?'} (${c.status}): ${c.texto}\n   → ${c.motivo}\n`);
   }
   console.log('Aprove as mensagens no painel: /painel');

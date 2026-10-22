@@ -7,14 +7,14 @@ import { atualizarLead, leadsParaFollowup, registrarMensagem } from '../src/db.j
 import { whatsappTemplate } from '../src/meta.js';
 
 const { template, idioma, aposHoras, maxTentativas } = config.followup;
-const leads = leadsParaFollowup(aposHoras, maxTentativas);
+const leads = await leadsParaFollowup(aposHoras, maxTentativas);
 
 for (const lead of leads) {
   const primeiroNome = (lead.nome ?? '').replace(/^@/, '').split(' ')[0] || 'tudo bem';
   try {
     await whatsappTemplate(lead.contato, template, idioma, [primeiroNome]);
-    registrarMensagem(lead.id, 'ia', `[follow-up: template ${template}]`);
-    atualizarLead(lead.id, { followups_enviados: lead.followups_enviados + 1 });
+    await registrarMensagem(lead.id, 'ia', `[follow-up: template ${template}]`);
+    await atualizarLead(lead.id, { followups_enviados: lead.followups_enviados + 1 });
     console.log(`follow-up enviado para lead ${lead.id}`);
   } catch (e) {
     console.error(`falha no follow-up do lead ${lead.id}:`, e.message);

@@ -14,14 +14,14 @@ export function carregarCampanhas() {
 // Posts analisados pelo painel também funcionam como campanhas.
 const doPost = (p) => p && { ref: p.ref, tema: p.tema, titulo: p.tema, postIds: [p.media_id], palavrasChave: [] };
 
-export function campanhaPorRef(ref) {
+export async function campanhaPorRef(ref) {
   if (!ref) return undefined;
-  return carregarCampanhas().find((c) => c.ref.toUpperCase() === ref.toUpperCase()) ?? doPost(postPorRef(ref));
+  return carregarCampanhas().find((c) => c.ref.toUpperCase() === ref.toUpperCase()) ?? doPost(await postPorRef(ref));
 }
 
-export function campanhaPorPost(mediaId) {
+export async function campanhaPorPost(mediaId) {
   if (!mediaId) return undefined;
-  return carregarCampanhas().find((c) => c.postIds?.includes(mediaId)) ?? doPost(postPorMidia(mediaId));
+  return carregarCampanhas().find((c) => c.postIds?.includes(mediaId)) ?? doPost(await postPorMidia(mediaId));
 }
 
 // O link do WhatsApp leva a marca "(ref:XXX)" no texto, que identifica o post de origem.

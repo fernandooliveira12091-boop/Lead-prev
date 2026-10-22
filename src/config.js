@@ -44,6 +44,7 @@ export const config = {
     maxTentativas: Number(env.FOLLOWUP_MAX_TENTATIVAS ?? 2),
   },
 
-  dbPath: env.DB_PATH ?? 'data/leads.db',
+  // Postgres (ex.: Neon). Vazio = banco embutido em memória, só para testes e simulação.
+  databaseUrl: env.DATABASE_URL ?? '',
   campanhasPath: env.CAMPANHAS_PATH ?? 'data/campanhas.json',
 };

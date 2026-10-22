@@ -16,7 +16,7 @@ const PEDIDO_HUMANO = /\b(atendente|humano|falar com (o |a |um |uma )?(advogad[o
 
 export async function receberMensagem({ canal, contato, nome, texto, origemRef, origemPost, mensagemId }) {
   const ref = origemRef ?? extrairRef(texto);
-  const existente = leadExistente(canal, contato);
+  const existente = await leadExistente(canal, contato);
 
   // Contato sem origem rastreada (ex.: cliente atual no número em coexistência): o sistema não guarda nem responde nada;
   // o escritório atende pelo app como sempre.
@@ -25,30 +25,30 @@ export async function receberMensagem({ canal, contato, nome, texto, origemRef, 
   // Modo homologação: só contatos de teste são atendidos (nem a IA é chamada).
   if (!podeEnviar(canal, [contato])) return;
 
-  const lead = obterOuCriarLead({ canal, contato, nome, origemRef: ref, origemPost });
-  registrarMensagem(lead.id, 'lead', texto);
+  const lead = await obterOuCriarLead({ canal, contato, nome, origemRef: ref, origemPost });
+  await registrarMensagem(lead.id, 'lead', texto);
   if (canal === 'whatsapp' && mensagemId) whatsappMarcarLida(mensagemId).catch(() => {});
 
   if (PEDIDO_PARAR.test(texto)) {
-    atualizarLead(lead.id, { status: 'optout', ia_ativa: 0 });
+    await atualizarLead(lead.id, { status: 'optout', ia_ativa: 0 });
     const msg = 'Tudo bem, não enviaremos mais mensagens automáticas. Se precisar, é só escrever aqui novamente.';
     await enviar(canal, contato, msg).catch((e) => console.error('Falha ao confirmar opt-out:', e.message));
-    registrarMensagem(lead.id, 'ia', msg);
+    await registrarMensagem(lead.id, 'ia', msg);
     return;
   }
   if (PEDIDO_HUMANO.test(texto) && lead.ia_ativa) {
-    atualizarLead(lead.id, { status: 'com_advogado', ia_ativa: 0 });
+    await atualizarLead(lead.id, { status: 'com_advogado', ia_ativa: 0 });
     const msg = 'Certo! Vou passar sua conversa para a equipe do escritório, que continua o atendimento por aqui.';
     await enviar(canal, contato, msg).catch((e) => console.error('Falha ao confirmar handoff:', e.message));
-    registrarMensagem(lead.id, 'ia', msg);
-    await avisarAdvogado({ ...lead, status: 'com_advogado', resumo: 'O lead pediu atendimento humano.' }, campanhaPorRef(lead.origem_ref))
+    await registrarMensagem(lead.id, 'ia', msg);
+    await avisarAdvogado({ ...lead, status: 'com_advogado', resumo: 'O lead pediu atendimento humano.' }, await campanhaPorRef(lead.origem_ref))
       .catch((e) => console.error('Falha ao avisar advogado:', e.message));
     return;
   }
 
   if (lead.status === 'optout') {
     // A própria pessoa voltou a escrever: retoma o atendimento.
-    atualizarLead(lead.id, { status: 'em_triagem', ia_ativa: 1 });
+    await atualizarLead(lead.id, { status: 'em_triagem', ia_ativa: 1 });
   } else if (!lead.ia_ativa) {
     return; // caso já está com o advogado; a IA não interfere
   }
@@ -81,15 +81,15 @@ async function responder(leadId, canal, contato) {
 }
 
 async function responderUmaVez(leadId, canal, contato) {
-  const lead = obterOuCriarLead({ canal, contato });
+  const lead = await obterOuCriarLead({ canal, contato });
   if (!lead.ia_ativa) return;
-  const campanha = campanhaPorRef(lead.origem_ref) ?? campanhaPorPost(lead.origem_post);
+  const campanha = await campanhaPorRef(lead.origem_ref) ?? await campanhaPorPost(lead.origem_post);
 
-  const t = await triar({ lead, campanha, historico: historico(leadId) });
+  const t = await triar({ lead, campanha, historico: await historico(leadId) });
 
   if (t.resposta.trim()) {
     await enviar(canal, contato, t.resposta);
-    registrarMensagem(leadId, 'ia', t.resposta);
+    await registrarMensagem(leadId, 'ia', t.resposta);
   }
 
   const dados = { ...JSON.parse(lead.dados_json ?? '{}'), fatos: t.fatos_relevantes };
@@ -104,7 +104,7 @@ async function responderUmaVez(leadId, canal, contato) {
   if (t.optout) Object.assign(campos, { status: 'optout', ia_ativa: 0 });
   else if (t.encaminhar_advogado) Object.assign(campos, { status: 'com_advogado', ia_ativa: 0 });
   else if (t.status === 'descartado') campos.ia_ativa = 0;
-  atualizarLead(leadId, campos);
+  await atualizarLead(leadId, campos);
 
   if (t.encaminhar_advogado && !t.optout) {
     await avisarAdvogado({ ...lead, ...campos }, campanha).catch((e) => console.error('Falha ao avisar advogado', e));

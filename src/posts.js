@@ -55,16 +55,16 @@ function tituloDaLegenda(legenda) {
 
 export async function analisarPost({ entrada, ref, tema }) {
   const midia = await resolverMidia(entrada);
-  const existente = postPorMidia(midia.id);
+  const existente = await postPorMidia(midia.id);
 
   const codigo = (ref ?? existente?.ref ?? '').trim().toUpperCase();
   if (!/^[A-Z]{2,5}[0-9]{3}$/.test(codigo)) {
     throw new ErroUsuario('Informe um código para o post no formato AR001, SMR002 etc.');
   }
-  const outro = postPorRef(codigo);
+  const outro = await postPorRef(codigo);
   if (outro && outro.media_id !== midia.id) throw new ErroUsuario(`O código ${codigo} já é de outro post.`);
 
-  const post = salvarPost({
+  const post = await salvarPost({
     mediaId: midia.id,
     ref: codigo,
     tema: tema?.trim() || existente?.tema || tituloDaLegenda(midia.caption),
@@ -74,31 +74,31 @@ export async function analisarPost({ entrada, ref, tema }) {
   });
 
   const comentarios = (await instagramComentarios(midia.id)).filter((c) => c.autorId !== config.instagram.accountId);
-  const novos = inserirComentarios(midia.id, comentarios);
+  const novos = await inserirComentarios(midia.id, comentarios);
   const classificados = await classificarPendentes(post);
-  marcarPostAnalisado(midia.id);
+  await marcarPostAnalisado(midia.id);
 
   return { post, totalComentarios: comentarios.length, novos: novos.length, classificados };
 }
 
 export async function classificarPendentes(post) {
-  const pendentes = comentariosSemClassificacao(post.media_id);
+  const pendentes = await comentariosSemClassificacao(post.media_id);
   if (pendentes.length === 0) return 0;
   const resultado = await classificarComentarios(post, pendentes);
-  for (const c of resultado) salvarClassificacao(c.id, c);
+  for (const c of resultado) await salvarClassificacao(c.id, c);
   return resultado.length;
 }
 
 /** Comentário recebido em tempo real pelo webhook, num post já cadastrado: só registra e classifica. */
 export async function registrarComentarioWebhook(c) {
   const mediaId = c.media?.id;
-  let post = postPorMidia(mediaId);
+  let post = await postPorMidia(mediaId);
   if (!post) {
     const campanha = carregarCampanhas().find((k) => k.postIds?.includes(mediaId));
-    if (campanha) post = salvarPost({ mediaId, ref: campanha.ref, tema: campanha.titulo });
+    if (campanha) post = await salvarPost({ mediaId, ref: campanha.ref, tema: campanha.titulo });
   }
   if (!post || !c.id || c.parent_id || c.from?.id === config.instagram.accountId) return false;
-  inserirComentarios(post.media_id, [
+  await inserirComentarios(post.media_id, [
     { id: c.id, texto: c.text ?? '', criadoEm: new Date().toISOString(), usuario: c.from?.username, autorId: c.from?.id },
   ]);
   await classificarPendentes(post);
@@ -112,18 +112,18 @@ export function montarMensagemPrivada(post, texto) {
 
 /** Envio aprovado pelo advogado: uma resposta privada (Direct) e, opcionalmente, uma resposta pública. */
 export async function enviarParaComentario(id, { mensagemPrivada, respostaPublica }, decididoPor) {
-  const c = comentarioPorId(id);
+  const c = await comentarioPorId(id);
   if (!c) throw new ErroUsuario('Comentário não encontrado.');
   const vencido = c.status === 'expirado' || (c.status === 'pendente' && prazoRespostaPrivada(c.comentado_em) < new Date());
   if (c.status !== 'pendente' && !vencido) throw new ErroUsuario(`Este comentário já está como "${c.status}".`);
   if (vencido) {
-    atualizarComentario(id, { status: 'expirado' });
+    await atualizarComentario(id, { status: 'expirado' });
     throw new ErroUsuario('Passaram 7 dias do comentário: o Instagram não permite mais resposta privada.');
   }
   const texto = (mensagemPrivada ?? c.mensagem_privada ?? '').trim();
   if (!texto) throw new ErroUsuario('A mensagem privada está vazia.');
 
-  const post = postPorMidia(c.media_id);
+  const post = await postPorMidia(c.media_id);
   const mensagem = montarMensagemPrivada(post, texto);
   const autor = { id: c.autor_id, usuario: c.autor_usuario };
 
@@ -131,10 +131,10 @@ export async function enviarParaComentario(id, { mensagemPrivada, respostaPublic
     await instagramRespostaPrivada(id, mensagem, autor);
   } catch (e) {
     if (e instanceof EnvioBloqueado) throw new ErroUsuario(`${e.message}. Adicione a conta em INSTAGRAM_TESTE ou desligue o modo homologação.`);
-    atualizarComentario(id, { erro: e.message.slice(0, 300) });
+    await atualizarComentario(id, { erro: e.message.slice(0, 300) });
     throw e;
   }
-  atualizarComentario(id, {
+  await atualizarComentario(id, {
     status: 'enviado',
     mensagem_privada: texto,
     decidido_por: decididoPor,
@@ -148,21 +148,21 @@ export async function enviarParaComentario(id, { mensagemPrivada, respostaPublic
   }
 
   if (c.autor_id) {
-    const lead = obterOuCriarLead({
+    const lead = await obterOuCriarLead({
       canal: 'instagram',
       contato: c.autor_id,
       nome: c.autor_usuario ? `@${c.autor_usuario}` : null,
       origemRef: post.ref,
       origemPost: post.media_id,
     });
-    registrarMensagem(lead.id, 'lead', `[comentou no post ${post.ref}]: ${c.texto}`);
-    registrarMensagem(lead.id, 'humano', mensagem);
+    await registrarMensagem(lead.id, 'lead', `[comentou no post ${post.ref}]: ${c.texto}`);
+    await registrarMensagem(lead.id, 'humano', mensagem);
   }
 }
 
-export function ignorarComentario(id, decididoPor) {
-  const c = comentarioPorId(id);
+export async function ignorarComentario(id, decididoPor) {
+  const c = await comentarioPorId(id);
   if (!c) throw new ErroUsuario('Comentário não encontrado.');
   if (c.status !== 'pendente') return;
-  atualizarComentario(id, { status: 'ignorado', decidido_por: decididoPor, decidido_em: new Date().toISOString() });
+  await atualizarComentario(id, { status: 'ignorado', decidido_por: decididoPor, decidido_em: new Date().toISOString() });
 }

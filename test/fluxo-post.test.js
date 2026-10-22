@@ -3,7 +3,6 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 Object.assign(process.env, {
-  DB_PATH: ':memory:',
   ADMIN_TOKEN: 'senha-teste',
   ANTHROPIC_API_KEY: 'sk-teste',
   META_ACCESS_TOKEN: 'meta-teste',
@@ -113,10 +112,10 @@ test('analisa o post pelo link e classifica os comentários', async () => {
   const r = await fetch(`${base}/painel/posts`, form({ entrada: 'https://www.instagram.com/p/ABC123/?igsh=xyz', ref: 'ar001', tema: 'Aposentadoria rural negada' }));
   assert.equal(r.status, 303);
   assert.match(r.headers.get('location'), /\/painel\/posts\/178001/);
-  assert.equal(comentarioPorId('c1').temperatura, 'quente');
-  assert.equal(comentarioPorId('c2').temperatura, 'morno');
-  assert.equal(comentarioPorId('c3').temperatura, 'frio');
-  assert.equal(comentarioPorId('c5'), undefined, 'comentário da própria conta é ignorado');
+  assert.equal((await comentarioPorId('c1')).temperatura, 'quente');
+  assert.equal((await comentarioPorId('c2')).temperatura, 'morno');
+  assert.equal((await comentarioPorId('c3')).temperatura, 'frio');
+  assert.equal((await comentarioPorId('c5')), undefined, 'comentário da própria conta é ignorado');
   const pagina = await (await fetch(`${base}/painel/posts/178001`, { headers: AUTH })).text();
   assert.match(pagina, /Para aprovar \(2\)/); // c1 e c2; c4 venceu o prazo de 7 dias
   assert.ok(!pagina.includes('<script'), 'texto do comentário é escapado');
@@ -133,7 +132,7 @@ test('modo homologação bloqueia envio para conta que não é de teste', async 
   const r = await fetch(`${base}/painel/comentarios/c2/enviar`, form({ mensagemPrivada: 'Olá!', respostaPublica: '' }));
   assert.match(decodeURIComponent(r.headers.get('location')), /modo homologação/);
   assert.equal(enviados.length, n);
-  assert.equal(comentarioPorId('c2').status, 'pendente');
+  assert.equal((await comentarioPorId('c2')).status, 'pendente');
 });
 
 test('aprovação envia uma resposta privada com link do WhatsApp e cria o lead com a origem', async () => {
@@ -144,8 +143,8 @@ test('aprovação envia uma resposta privada com link do WhatsApp e cria o lead 
   assert.ok(privada, 'resposta privada enviada');
   assert.match(privada.body.message.text, /wa\.me\/5562900000000\?text=.*ref%3AAR001/);
   assert.ok(novos.some((e) => e.url.includes('/c1/replies')), 'resposta pública enviada');
-  assert.equal(comentarioPorId('c1').status, 'enviado');
-  const lead = listarLeads().find((l) => l.contato === 'ig-maria');
+  assert.equal((await comentarioPorId('c1')).status, 'enviado');
+  const lead = (await listarLeads()).find((l) => l.contato === 'ig-maria');
   assert.equal(lead.origem_ref, 'AR001');
 });
 
@@ -157,7 +156,7 @@ test('não envia duas vezes para o mesmo comentário', async () => {
 test('comentário com mais de 7 dias não pode receber resposta privada', async () => {
   const r = await fetch(`${base}/painel/comentarios/c4/enviar`, form({ mensagemPrivada: 'oi' }));
   assert.match(decodeURIComponent(r.headers.get('location')), /7 dias/);
-  assert.equal(comentarioPorId('c4').status, 'expirado');
+  assert.equal((await comentarioPorId('c4')).status, 'expirado');
 });
 
 const esperar = (ms) => new Promise((r) => setTimeout(r, ms));
@@ -175,25 +174,25 @@ test('lead chega no WhatsApp pelo link: origem registrada e IA responde', async 
   const n = enviados.length;
   const r = await mensagemWhatsapp('5562911111111', 'Olá! Vi a publicação sobre Aposentadoria rural negada e gostaria de conversar. (ref:AR001)', 'wamid.A1');
   assert.equal(r.status, 200);
-  const lead = listarLeads().find((l) => l.contato === '5562911111111');
+  const lead = (await listarLeads()).find((l) => l.contato === '5562911111111');
   assert.equal(lead.origem_ref, 'AR001');
-  assert.equal(historico(lead.id).at(-1).autor, 'ia');
+  assert.equal((await historico(lead.id)).at(-1).autor, 'ia');
 });
 
 test('SAIR interrompe a automação sem chamar a IA', async () => {
   const antes = chamadasClaude;
   await mensagemWhatsapp('5562911111111', 'SAIR', 'wamid.A2');
-  const lead = listarLeads().find((l) => l.contato === '5562911111111');
+  const lead = (await listarLeads()).find((l) => l.contato === '5562911111111');
   assert.equal(lead.status, 'optout');
   assert.equal(lead.ia_ativa, 0);
   assert.equal(chamadasClaude, antes);
 });
 
 test('mensagem repetida da Meta é ignorada', async () => {
-  const lead = listarLeads().find((l) => l.contato === '5562911111111');
-  const n = historico(lead.id, 100).length;
+  const lead = (await listarLeads()).find((l) => l.contato === '5562911111111');
+  const n = (await historico(lead.id, 100)).length;
   await mensagemWhatsapp('5562911111111', 'SAIR', 'wamid.A2');
-  assert.equal(historico(lead.id, 100).length, n);
+  assert.equal((await historico(lead.id, 100)).length, n);
 });
 
 test('cliente atual (sem post de origem) não é atendido pela IA nem registrado', async () => {
@@ -203,7 +202,7 @@ test('cliente atual (sem post de origem) não é atendido pela IA nem registrado
   await mensagemWhatsapp('5562922222222', 'Bom dia doutor, e o meu processo?', 'wamid.B1');
   assert.equal(chamadasClaude, antesClaude);
   assert.equal(enviados.length, antesEnvios, 'nem a confirmação de leitura é enviada');
-  assert.equal(listarLeads().find((l) => l.contato === '5562922222222'), undefined);
+  assert.equal((await listarLeads()).find((l) => l.contato === '5562922222222'), undefined);
 });
 
 async function ecoDoApp(para, texto, id) {
@@ -217,13 +216,13 @@ async function ecoDoApp(para, texto, id) {
 test('quando o advogado responde pelo app (coexistência), a IA sai da conversa', async () => {
   process.env.WHATSAPP_TESTE = '5562911111111,5562933333333';
   await mensagemWhatsapp('5562933333333', 'Oi, vi o post (ref:AR001)', 'wamid.C1');
-  const lead = listarLeads().find((l) => l.contato === '5562933333333');
+  const lead = (await listarLeads()).find((l) => l.contato === '5562933333333');
   assert.equal(lead.ia_ativa, 1);
   await ecoDoApp('5562933333333', 'Olá, aqui é o Fernando. Vou te ajudar.', 'wamid.ECO1');
-  const depois = listarLeads().find((l) => l.contato === '5562933333333');
+  const depois = (await listarLeads()).find((l) => l.contato === '5562933333333');
   assert.equal(depois.ia_ativa, 0);
   assert.equal(depois.status, 'com_advogado');
-  assert.equal(historico(lead.id).at(-1).autor, 'humano');
+  assert.equal((await historico(lead.id)).at(-1).autor, 'humano');
   const antesClaude = chamadasClaude;
   await mensagemWhatsapp('5562933333333', 'Obrigada!', 'wamid.C2');
   assert.equal(chamadasClaude, antesClaude, 'IA não responde mais');

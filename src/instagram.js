@@ -17,14 +17,14 @@ export async function processarWebhookInstagram(body) {
 // Comentários novos em posts cadastrados entram na fila do painel, já classificados pela IA.
 // Nada é enviado automaticamente: a resposta privada só sai com aprovação no painel.
 async function tratarComentario(c) {
-  if (!c?.id || jaProcessado(`igc:${c.id}`)) return;
+  if (!c?.id || await jaProcessado(`igc:${c.id}`)) return;
   await registrarComentarioWebhook(c);
 }
 
 async function tratarDM(ev) {
   const m = ev.message;
   if (!m || m.is_echo || ev.sender?.id === config.instagram.accountId) return;
-  if (jaProcessado(`igm:${m.mid}`)) return;
+  if (await jaProcessado(`igm:${m.mid}`)) return;
 
   const texto = m.text ?? (m.attachments?.length ? '[enviou um anexo/áudio]' : '');
   if (!texto) return;

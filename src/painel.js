@@ -28,6 +28,9 @@ export function autenticar(req, res, next) {
 }
 painel.use(autenticar);
 
+export const dataHora = (d) =>
+  d ? new Date(d).toLocaleString('pt-BR', { timeZone: 'America/Sao_Paulo', dateStyle: 'short', timeStyle: 'short' }) : '—';
+
 export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
@@ -66,13 +69,13 @@ function alerta(req) {
   return '';
 }
 
-painel.get('/', (req, res) => {
-  const posts = listarPosts();
+painel.get('/', async (req, res) => {
+  const posts = await listarPosts();
   const linhas = posts
     .map(
       (p) => `<tr><td><a href="/painel/posts/${esc(p.media_id)}"><b>${esc(p.ref)}</b></a></td><td>${esc(p.tema)}</td>
         <td>${p.comentarios}</td><td><b>${p.quentes}</b></td><td>${p.leads}</td>
-        <td class="muted">${esc(p.analisado_em ?? '—')}</td></tr>`,
+        <td class="muted">${esc(dataHora(p.analisado_em))}</td></tr>`,
     )
     .join('');
   res.send(
@@ -121,7 +124,7 @@ function cartaoComentario(c) {
   const acionavel = c.status === 'pendente' && ['quente', 'morno'].includes(c.temperatura) && !vencido;
   const cabecalho = `<div class="linha"><span class="tag ${esc(c.temperatura ?? 'frio')}">${esc(c.temperatura ?? 'sem classificação')}</span>
     <b>@${esc(c.autor_usuario ?? 'desconhecido')}</b><span class="muted">${esc(c.beneficio ?? '')} · ${esc(c.status)}${
-      c.status === 'pendente' && !vencido ? ` · resposta privada até ${prazo.toLocaleDateString('pt-BR')}` : ''
+      c.status === 'pendente' && !vencido ? ` · resposta privada até ${prazo.toLocaleDateString('pt-BR', { timeZone: 'America/Sao_Paulo' })}` : ''
     }</span></div>
     <blockquote>${esc(c.texto)}</blockquote><p class="muted">${esc(c.motivo ?? '')}</p>`;
   if (!acionavel) return `<div class="card">${cabecalho}${c.erro ? `<p class="muted">Erro: ${esc(c.erro)}</p>` : ''}</div>`;
@@ -136,10 +139,10 @@ function cartaoComentario(c) {
     </form></div>`;
 }
 
-painel.get('/posts/:mediaId', (req, res) => {
-  const post = postPorMidia(req.params.mediaId);
+painel.get('/posts/:mediaId', async (req, res) => {
+  const post = await postPorMidia(req.params.mediaId);
   if (!post) return res.status(404).send(pagina('Post', '<p>Post não encontrado.</p>'));
-  const comentarios = comentariosDoPost(post.media_id);
+  const comentarios = await comentariosDoPost(post.media_id);
   const pendentes = comentarios.filter((c) => c.status === 'pendente' && ['quente', 'morno'].includes(c.temperatura));
   const demais = comentarios.filter((c) => !pendentes.includes(c));
   res.send(
@@ -159,7 +162,7 @@ async function decidir(req, res, acao) {
   const id = req.params.id;
   let mediaId;
   try {
-    mediaId = comentarioPorId(id)?.media_id;
+    mediaId = (await comentarioPorId(id))?.media_id;
     await acao();
     res.redirect(303, `/painel/posts/${encodeURIComponent(mediaId)}?ok=${encodeURIComponent('Feito.')}`);
   } catch (e) {

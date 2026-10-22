@@ -2,7 +2,7 @@
 
 > ⚠️ **Status:** funcional em **modo homologação** (só envia para contas de teste). Antes de atender o público, faça a etapa 6 do passo a passo.
 > Publicar o painel: [`docs/publicar.md`](docs/publicar.md). Configuração específica do escritório: [`docs/configuracao-meta.md`](docs/configuracao-meta.md).
-> Esta versão usa Node.js + SQLite; a migração para n8n + PostgreSQL da especificação está planejada.
+> Esta versão usa Node.js + PostgreSQL (Neon no plano gratuito); a orquestração em n8n da especificação fica para depois.
 > A especificação e o plano por fases estão em [`docs/fase-1-descoberta.md`](docs/fase-1-descoberta.md); o esquema PostgreSQL do MVP está em [`db/migrations/`](db/migrations/).
 
 Você manda o post ➜ o sistema acha os leads quentes nos comentários ➜ você aprova ➜ a pessoa vai para o WhatsApp ➜ a IA faz a triagem ➜ o caso chega ao advogado.
@@ -81,7 +81,7 @@ Você conversa no terminal como se fosse um lead que veio do post AR001. Ajuste 
 
 ### 4. Publicar o servidor
 A Meta precisa de uma URL **https** pública. Opções: Render, Railway, Fly.io, uma VPS, ou `ngrok http 3000` para testes.
-O banco é um arquivo SQLite em `data/leads.db` — use um disco persistente na hospedagem.
+O banco é PostgreSQL: defina `DATABASE_URL` (ex.: Neon). Sem ela, o sistema usa um banco temporário em memória, que serve só para teste. Passo a passo em [`docs/publicar.md`](docs/publicar.md).
 
 ### 5. Webhooks na Meta
 No painel do app:
@@ -130,7 +130,7 @@ src/instagram.js    webhook: comentários ➜ fila do painel; Direct ➜ IA
 src/atendimento.js  fila por lead, chama a IA, envia, passa para o advogado
 src/ia.js           prompt de triagem previdenciária e chamada ao Claude
 src/meta.js         Graph API (WhatsApp/Instagram), assinatura e trava do modo homologação
-src/db.js           SQLite (leads, mensagens, posts, comentários)
+src/db.js           PostgreSQL (leads, mensagens, posts, comentários); PGlite embutido em testes
 scripts/analisar-post.js  análise de post pelo terminal
 scripts/followup.js reengajamento por template
 scripts/simular.js  conversa de teste no terminal

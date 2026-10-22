@@ -21,14 +21,14 @@ export async function processarWebhookWhatsapp(body) {
       }
       // Coexistência: mensagens que o escritório envia pelo app WhatsApp Business no celular.
       for (const eco of change.field === 'smb_message_echoes' ? (v.message_echoes ?? []) : []) {
-        tratarEco(eco);
+        await tratarEco(eco);
       }
     }
   }
 }
 
 async function tratarMensagem(msg, nome) {
-  if (jaProcessado(`wa:${msg.id}`)) return;
+  if (await jaProcessado(`wa:${msg.id}`)) return;
 
   const texto =
     msg.text?.body ??
@@ -41,16 +41,16 @@ async function tratarMensagem(msg, nome) {
   // Anúncios "Clique para o WhatsApp" e posts impulsionados chegam com `referral`.
   const r = msg.referral;
   const origemPost = r?.source_id;
-  const origemRef = origemPost ? campanhaPorPost(origemPost)?.ref : undefined;
+  const origemRef = origemPost ? (await campanhaPorPost(origemPost))?.ref : undefined;
 
   await receberMensagem({ canal: 'whatsapp', contato: msg.from, nome, texto, origemRef, origemPost, mensagemId: msg.id });
 }
 
 // Quando o advogado responde um lead pelo app no celular, a IA sai daquela conversa.
-function tratarEco(eco) {
-  if (!eco?.id || jaProcessado(`wa-eco:${eco.id}`)) return;
-  const lead = leadExistente('whatsapp', eco.to);
+async function tratarEco(eco) {
+  if (!eco?.id || await jaProcessado(`wa-eco:${eco.id}`)) return;
+  const lead = await leadExistente('whatsapp', eco.to);
   if (!lead) return;
-  registrarMensagem(lead.id, 'humano', eco.text?.body ?? `[${eco.type ?? 'mensagem'} enviada pelo app]`);
-  if (lead.ia_ativa) atualizarLead(lead.id, { ia_ativa: 0, status: lead.status === 'optout' ? 'optout' : 'com_advogado' });
+  await registrarMensagem(lead.id, 'humano', eco.text?.body ?? `[${eco.type ?? 'mensagem'} enviada pelo app]`);
+  if (lead.ia_ativa) await atualizarLead(lead.id, { ia_ativa: 0, status: lead.status === 'optout' ? 'optout' : 'com_advogado' });
 }

@@ -6,7 +6,7 @@ import { processarWebhookInstagram } from './instagram.js';
 import { atualizarLead, historico, leadPorId, listarLeads, registrarMensagem } from './db.js';
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { enviar } from './atendimento.js';
-import { autenticar, esc, pagina, painel } from './painel.js';
+import { autenticar, dataHora, esc, pagina, painel } from './painel.js';
 
 const app = express();
 app.use(express.json({ verify: (req, _res, buf) => (req.rawBody = buf) }));
@@ -43,8 +43,8 @@ const STATUS = {
   descartado: 'descartado', optout: 'pediu para sair',
 };
 
-app.get('/leads', admin, (req, res) => {
-  const leads = listarLeads();
+app.get('/leads', admin, async (req, res) => {
+  const leads = await listarLeads();
   if (req.accepts(['html', 'json']) === 'json') return res.json(leads);
   const cartoes = leads
     .map((l) => {
@@ -55,7 +55,7 @@ app.get('/leads', admin, (req, res) => {
       return `<div class="card">
         <div class="linha"><span class="tag ${esc(l.status)}">${esc(STATUS[l.status] ?? l.status)}</span>
           <b>${esc(l.nome ?? 'Sem nome')}</b>
-          <span class="muted">${esc(l.area ?? 'área indefinida')} · post ${esc(l.origem_ref ?? '—')} · ${l.ia_ativa ? 'IA atendendo' : 'atendimento humano'} · ${esc(l.criado_em)}</span></div>
+          <span class="muted">${esc(l.area ?? 'área indefinida')} · post ${esc(l.origem_ref ?? '—')} · ${l.ia_ativa ? 'IA atendendo' : 'atendimento humano'} · ${esc(dataHora(l.criado_em))}</span></div>
         ${l.resumo ? `<blockquote>${esc(l.resumo)}</blockquote>` : ''}
         ${fatos.length ? `<ul>${fatos.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
         <p class="muted">${contato}</p></div>`;
@@ -64,11 +64,11 @@ app.get('/leads', admin, (req, res) => {
   res.send(pagina('Leads', `<h1>Leads (${leads.length})</h1>${cartoes || '<p class="muted">Nenhum lead ainda.</p>'}`));
 });
 
-app.get('/leads/:id/conversa', admin, (req, res) => res.json(historico(Number(req.params.id), 500)));
+app.get('/leads/:id/conversa', admin, async (req, res) => res.json(await historico(Number(req.params.id), 500)));
 
 // Pausar a IA (o advogado assume) ou devolver o atendimento para a IA.
-app.post('/leads/:id/ia', admin, (req, res) => {
-  atualizarLead(Number(req.params.id), { ia_ativa: req.body?.ativa ? 1 : 0 });
+app.post('/leads/:id/ia', admin, async (req, res) => {
+  await atualizarLead(Number(req.params.id), { ia_ativa: req.body?.ativa ? 1 : 0 });
   res.sendStatus(204);
 });
 
@@ -79,10 +79,10 @@ app.get('/campanhas/links', admin, (_req, res) => {
 
 // Envio manual de mensagem pelo escritório (só dentro da janela de 24h do WhatsApp).
 app.post('/leads/:id/mensagem', admin, async (req, res) => {
-  const lead = leadPorId(Number(req.params.id));
+  const lead = await leadPorId(Number(req.params.id));
   if (!lead || !req.body?.texto) return res.sendStatus(400);
   await enviar(lead.canal, lead.contato, req.body.texto);
-  registrarMensagem(lead.id, 'humano', req.body.texto);
+  await registrarMensagem(lead.id, 'humano', req.body.texto);
   res.sendStatus(204);
 });
 
@@ -93,8 +93,8 @@ app.get('/saude', (_req, res) => res.json({ ok: true }));
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   if (!config.adminToken) console.warn('ATENÇÃO: ADMIN_TOKEN não definido; o painel ficará bloqueado.');
-  if (process.env.RAILWAY_ENVIRONMENT && !config.dbPath.startsWith('/data/')) {
-    console.warn('ATENÇÃO: DB_PATH fora do volume /data; os dados serão apagados a cada nova publicação.');
+  if (!config.databaseUrl) {
+    console.warn('ATENÇÃO: DATABASE_URL não definida; usando banco temporário em memória (os dados somem ao reiniciar).');
   }
   console.log(`Modo homologação: ${process.env.MODO_HOMOLOGACAO === '0' ? 'DESLIGADO' : 'ligado'}`);
   app.listen(config.port, () => console.log(`lead-prev ouvindo na porta ${config.port}`));
