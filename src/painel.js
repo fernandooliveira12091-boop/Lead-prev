@@ -19,7 +19,7 @@ export function autenticar(req, res, next) {
   const motivo = !config.adminToken
     ? 'ADMIN_TOKEN não configurado (vazio, com texto de exemplo ou com menos de 12 caracteres)'
     : usuario?.toLowerCase() !== config.painelUsuario.toLowerCase()
-      ? `usuário digitado diferente de PAINEL_USUARIO (esperado: "${config.painelUsuario}")`
+      ? `usuário digitado diferente de PAINEL_USUARIO (digitado com ${usuario?.length ?? 0} caracteres; configurado com ${config.painelUsuario.length})`
       : senha !== config.adminToken
         ? `senha diferente do ADMIN_TOKEN (digitada com ${senha?.length ?? 0} caracteres; configurada com ${config.adminToken.length})`
         : '';
