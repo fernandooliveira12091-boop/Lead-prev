@@ -15,6 +15,7 @@ Object.assign(process.env, {
 });
 
 const chamadas = [];
+let patchFunciona = true;
 const webhooks = [{ id: 'errado', url: 'https://whatsapp.inbound_message.received', enabledEvents: [], status: 'active' }];
 const fetchReal = globalThis.fetch;
 globalThis.fetch = async (url, init = {}) => {
@@ -33,7 +34,8 @@ globalThis.fetch = async (url, init = {}) => {
   if (u.includes('/webhookEndpoints')) {
     const corpo = init.body ? JSON.parse(init.body) : {};
     if (init.method === 'POST') webhooks.push({ id: `wh${webhooks.length + 1}`, ...corpo });
-    if (init.method === 'PATCH') Object.assign(webhooks.find((w) => u.endsWith(`/${w.id}`)), corpo);
+    if (init.method === 'PATCH' && patchFunciona) Object.assign(webhooks.find((w) => u.endsWith(`/${w.id}`)), corpo);
+    if (init.method === 'DELETE') webhooks.splice(webhooks.findIndex((w) => u.endsWith(`/${w.id}`)), 1);
     return new Response(JSON.stringify(init.method === 'GET' || !init.method ? { items: webhooks } : { ok: true }));
   }
   return new Response(JSON.stringify({ id: 'ok' }), { headers: { 'content-type': 'application/json' } });
@@ -108,8 +110,16 @@ test('botão da tela Conexões cadastra e depois corrige o webhook na YCloud', a
 
   // Alguém desativa e troca o endereço à mão: o botão corrige o mesmo cadastro, sem duplicar.
   Object.assign(nossos[0], { status: 'disabled', url: nossos[0].url.replace(CHAVE, 'outra-chave-qualquer-123') });
-  assert.match(await testar(), /endereço ou chave diferente/);
+  assert.match(await testar(), /chave antiga/);
+  assert.doesNotMatch(await testar(), /outra-chave-qualquer/);
   await fetch(`${base}/painel/status/webhookycloud`, { method: 'POST', headers: AUTH });
   assert.equal(webhooks.filter((w) => w.id !== 'errado').length, 1);
   assert.match(await testar(), /webhook cadastrado e ativo/);
+
+  // Se a YCloud não aplicar a atualização, o botão apaga o cadastro antigo e cria outro.
+  patchFunciona = false;
+  webhooks.find((w) => w.id !== 'errado').url = 'http://lead-prev.onrender.com/webhook/whatsapp?chave=x';
+  assert.match(await testar(), /endereço http:\/\/lead-prev\.onrender\.com/);
+  assert.match(await (await fetch(`${base}/painel/status/webhookycloud`, { method: 'POST', headers: AUTH })).text(), /webhook cadastrado e ativo/);
+  assert.equal(webhooks.filter((w) => w.id !== 'errado').length, 1);
 });

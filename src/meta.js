@@ -143,9 +143,8 @@ export async function situacaoWebhookYcloud(urlEsperada) {
   const lista = await webhooksYcloud();
   const certo = lista.find((w) => w.url === urlEsperada);
   if (!certo) {
-    return lista.length
-      ? { ok: false, texto: 'há webhook apontando para o sistema, mas com endereço ou chave diferente (use o botão abaixo)' }
-      : { ok: false, texto: 'webhook ainda não cadastrado na YCloud (use o botão abaixo)' };
+    if (!lista.length) return { ok: false, texto: 'webhook ainda não cadastrado na YCloud (use o botão abaixo)' };
+    return { ok: false, texto: `webhook na YCloud com ${diferencaWebhook(lista[0].url, urlEsperada)} (use o botão abaixo)` };
   }
   const faltam = EVENTOS_YCLOUD.filter((e) => !(certo.enabledEvents ?? []).includes(e));
   if (certo.status && certo.status !== 'active') return { ok: false, texto: `webhook cadastrado, mas ${certo.status} (use o botão abaixo)` };
@@ -153,12 +152,31 @@ export async function situacaoWebhookYcloud(urlEsperada) {
   return { ok: true, texto: 'webhook cadastrado e ativo' };
 }
 
+// Diz o que difere entre dois endereços de webhook sem mostrar a chave.
+function diferencaWebhook(atual, esperado) {
+  try {
+    const a = new URL(atual);
+    const b = new URL(esperado);
+    if (a.origin !== b.origin) return `endereço ${a.origin} (o certo é ${b.origin})`;
+    if (!a.searchParams.get('chave')) return 'endereço sem a chave';
+    if (a.searchParams.get('chave') !== b.searchParams.get('chave')) return 'chave antiga (diferente da WHATSAPP_WEBHOOK_CHAVE atual)';
+    return 'endereço diferente';
+  } catch {
+    return 'endereço inválido';
+  }
+}
+
 /** Cria ou corrige o webhook na YCloud: um só, com a URL e os eventos certos, ativo. */
 export async function configurarWebhookYcloud(url) {
   const corpo = { url, enabledEvents: EVENTOS_YCLOUD, status: 'active', description: 'lead-prev (triagem automática)' };
-  const [existente] = await webhooksYcloud();
-  if (existente) await ycloud('PATCH', `/webhookEndpoints/${encodeURIComponent(existente.id)}`, corpo);
-  else await ycloud('POST', '/webhookEndpoints', corpo);
+  const existentes = await webhooksYcloud();
+  if (existentes.length) {
+    await ycloud('PATCH', `/webhookEndpoints/${encodeURIComponent(existentes[0].id)}`, corpo).catch(() => {});
+    if ((await situacaoWebhookYcloud(url)).ok) return;
+    // A atualização não pegou: apaga os cadastros antigos do sistema e cria um novo.
+    for (const w of existentes) await ycloud('DELETE', `/webhookEndpoints/${encodeURIComponent(w.id)}`);
+  }
+  await ycloud('POST', '/webhookEndpoints', corpo);
 }
 
 /** Cadastra na 360dialog o endereço que recebe as mensagens (webhook). */
