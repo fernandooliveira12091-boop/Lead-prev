@@ -28,12 +28,12 @@ export function autenticar(req, res, next) {
 }
 painel.use(autenticar);
 
-const esc = (s) =>
+export const esc = (s) =>
   String(s ?? '').replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 
 const homologacao = () => process.env.MODO_HOMOLOGACAO !== '0';
 
-function pagina(titulo, corpo) {
+export function pagina(titulo, corpo) {
   return `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
 <title>${esc(titulo)}</title>
 <style>
@@ -49,7 +49,7 @@ function pagina(titulo, corpo) {
   button.sec{background:transparent;color:var(--muted);border:1px solid var(--borda)}
   .linha{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted);font-size:13px}
   .tag{display:inline-block;padding:2px 8px;border-radius:99px;color:#fff;font-size:12px;font-weight:600}
-  .quente{background:var(--quente)}.morno{background:var(--morno)}.frio,.fora_do_escopo{background:var(--frio)}
+  .quente,.com_advogado,.qualificado{background:var(--quente)}.morno,.em_triagem,.novo{background:var(--morno)}.frio,.fora_do_escopo,.descartado,.optout{background:var(--frio)}
   table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid var(--borda);text-align:left}
   blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid var(--borda);white-space:pre-wrap}
 </style>

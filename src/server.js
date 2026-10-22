@@ -6,7 +6,7 @@ import { processarWebhookInstagram } from './instagram.js';
 import { atualizarLead, historico, leadPorId, listarLeads, registrarMensagem } from './db.js';
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { enviar } from './atendimento.js';
-import { autenticar, painel } from './painel.js';
+import { autenticar, esc, pagina, painel } from './painel.js';
 
 const app = express();
 app.use(express.json({ verify: (req, _res, buf) => (req.rawBody = buf) }));
@@ -38,25 +38,30 @@ app.post('/webhook/instagram', webhook(() => config.instagram.appSecret, process
 const admin = autenticar;
 app.use('/painel', painel);
 
-const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
+const STATUS = {
+  novo: 'novo', em_triagem: 'em triagem', qualificado: 'qualificado', com_advogado: 'com o advogado',
+  descartado: 'descartado', optout: 'pediu para sair',
+};
 
 app.get('/leads', admin, (req, res) => {
   const leads = listarLeads();
   if (req.accepts(['html', 'json']) === 'json') return res.json(leads);
-  const linhas = leads
-    .map(
-      (l) => `<tr>
-        <td>${l.id}</td><td>${esc(l.criado_em)}</td><td>${esc(l.nome)}</td>
-        <td>${l.canal === 'whatsapp' ? `<a href="https://wa.me/${esc(l.contato)}">${esc(l.contato)}</a>` : `IG ${esc(l.contato)}`}</td>
-        <td>${esc(l.origem_ref)}</td><td>${esc(l.area)}</td><td><b>${esc(l.status)}</b></td>
-        <td>${l.ia_ativa ? 'IA' : 'humano'}</td><td>${esc(l.resumo)}</td>
-      </tr>`,
-    )
+  const cartoes = leads
+    .map((l) => {
+      const fatos = JSON.parse(l.dados_json ?? '{}').fatos ?? [];
+      const contato = l.canal === 'whatsapp'
+        ? `<a href="https://wa.me/${esc(l.contato)}" target="_blank" rel="noopener">Abrir no WhatsApp</a>`
+        : `Instagram${l.nome?.startsWith('@') ? ` <a href="https://www.instagram.com/${esc(l.nome.slice(1))}/" target="_blank" rel="noopener">${esc(l.nome)}</a>` : ''}`;
+      return `<div class="card">
+        <div class="linha"><span class="tag ${esc(l.status)}">${esc(STATUS[l.status] ?? l.status)}</span>
+          <b>${esc(l.nome ?? 'Sem nome')}</b>
+          <span class="muted">${esc(l.area ?? 'área indefinida')} · post ${esc(l.origem_ref ?? '—')} · ${l.ia_ativa ? 'IA atendendo' : 'atendimento humano'} · ${esc(l.criado_em)}</span></div>
+        ${l.resumo ? `<blockquote>${esc(l.resumo)}</blockquote>` : ''}
+        ${fatos.length ? `<ul>${fatos.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
+        <p class="muted">${contato}</p></div>`;
+    })
     .join('');
-  res.send(`<!doctype html><meta charset="utf-8"><title>Leads</title>
-    <style>body{font-family:system-ui;margin:16px}table{border-collapse:collapse;width:100%}td,th{border:1px solid #ccc;padding:6px;font-size:14px;vertical-align:top}</style>
-    <h1>Leads (${leads.length})</h1>
-    <table><tr><th>#</th><th>Data</th><th>Nome</th><th>Contato</th><th>Post</th><th>Área</th><th>Status</th><th>Atendimento</th><th>Resumo</th></tr>${linhas}</table>`);
+  res.send(pagina('Leads', `<h1>Leads (${leads.length})</h1>${cartoes || '<p class="muted">Nenhum lead ainda.</p>'}`));
 });
 
 app.get('/leads/:id/conversa', admin, (req, res) => res.json(historico(Number(req.params.id), 500)));
