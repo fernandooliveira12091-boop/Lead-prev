@@ -31,7 +31,7 @@ function chaveValida(recebida, esperada) {
 
 function webhook(secret, processar, { aceitaChave = false } = {}) {
   return (req, res) => {
-    const autentico = aceitaChave && config.whatsapp.provedor === '360dialog'
+    const autentico = aceitaChave && config.whatsapp.provedor !== 'meta'
       ? chaveValida(req.query.chave, config.whatsapp.webhookChave)
       : assinaturaValida(req.rawBody, req.get('x-hub-signature-256'), secret());
     if (!autentico) return res.sendStatus(401);

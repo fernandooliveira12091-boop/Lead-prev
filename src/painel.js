@@ -230,7 +230,12 @@ function telaStatus(req, resultados) {
       <p class="muted">Política de privacidade</p><blockquote>${esc(base)}/privacidade</blockquote>
       <p class="muted">Exclusão de dados</p><blockquote>${esc(base)}/exclusao-de-dados</blockquote>
       <p class="muted">Webhook do Instagram</p><blockquote>${esc(base)}/webhook/instagram</blockquote>
-      ${config.whatsapp.provedor === '360dialog'
+      ${config.whatsapp.provedor === 'ycloud'
+        ? `<p class="muted">Webhook do WhatsApp (cadastre na YCloud em Developers ➜ Webhooks)</p>
+           ${config.whatsapp.webhookChave
+             ? `<blockquote>${esc(base)}/webhook/whatsapp?chave=${esc(config.whatsapp.webhookChave)}</blockquote>`
+             : '<p>Defina WHATSAPP_WEBHOOK_CHAVE (16+ caracteres) no Render para gerar o endereço.</p>'}`
+        : config.whatsapp.provedor === '360dialog'
         ? `<p class="muted">WhatsApp pela 360dialog (coexistência)</p>
            ${config.whatsapp.webhookChave
              ? `<form method="post" action="/painel/status/webhook360"><button class="sec">Cadastrar webhook do WhatsApp na 360dialog</button></form>`

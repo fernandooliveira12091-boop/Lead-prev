@@ -1,7 +1,7 @@
 import Anthropic from '@anthropic-ai/sdk';
 import { config } from './config.js';
 import { consultar } from './db.js';
-import { consultarWebhook360, get } from './meta.js';
+import { consultarWebhook360, get, testarYcloud } from './meta.js';
 
 // Verificações da tela "Conexões": o que já está configurado e se cada serviço responde.
 // Nenhuma verificação mostra tokens ou senhas.
@@ -12,7 +12,9 @@ export function configuracao() {
     { nome: 'Banco de dados (Neon)', ok: !!config.databaseUrl, falta: 'DATABASE_URL' },
     { nome: 'IA (Claude)', ok: !!env.ANTHROPIC_API_KEY, falta: 'ANTHROPIC_API_KEY' },
     { nome: 'Instagram', ok: !!(config.instagram.accountId && config.instagram.accessToken), falta: 'INSTAGRAM_ACCOUNT_ID e INSTAGRAM_ACCESS_TOKEN' },
-    config.whatsapp.provedor === '360dialog'
+    config.whatsapp.provedor === 'ycloud'
+      ? { nome: 'WhatsApp', ok: !!(config.whatsapp.ycloudKey && config.whatsapp.webhookChave), falta: 'YCLOUD_API_KEY e WHATSAPP_WEBHOOK_CHAVE (16+ caracteres)' }
+      : config.whatsapp.provedor === '360dialog'
       ? { nome: 'WhatsApp', ok: !!(config.whatsapp.d360Key && config.whatsapp.webhookChave), falta: 'D360_API_KEY e WHATSAPP_WEBHOOK_CHAVE (16+ caracteres)' }
       : { nome: 'WhatsApp', ok: !!(config.meta.phoneNumberId && config.meta.accessToken), falta: 'WHATSAPP_PHONE_NUMBER_ID e META_ACCESS_TOKEN' },
     { nome: 'Assinatura dos webhooks', ok: !!config.meta.appSecret, falta: 'META_APP_SECRET' },
@@ -40,6 +42,7 @@ const testes = {
     return `conta @${me.username} (id ${me.id})`;
   },
   async WhatsApp() {
+    if (config.whatsapp.provedor === 'ycloud') return testarYcloud();
     if (config.whatsapp.provedor === '360dialog') {
       const w = await consultarWebhook360();
       return w?.url?.includes('/webhook/whatsapp')

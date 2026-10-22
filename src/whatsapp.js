@@ -11,7 +11,23 @@ const TIPOS_SEM_TEXTO = {
   location: '[enviou uma localização]',
 };
 
+const digitos = (n) => String(n ?? '').replace(/\D/g, '');
+
+// A YCloud envia um evento por requisição, com nomes próprios; convertemos para o formato da Meta.
+async function processarEventoYcloud(ev) {
+  if (ev.type === 'whatsapp.inbound_message.received') {
+    const m = ev.whatsappInboundMessage ?? {};
+    await tratarMensagem({ ...m, id: m.wamid ?? m.id, from: digitos(m.from) }, m.customerProfile?.name);
+  } else if (/^whatsapp\.smb\.message\.echoes/.test(ev.type ?? '')) {
+    const m = ev.whatsappMessage ?? ev.whatsappSmbMessageEcho ?? {};
+    await tratarEco({ ...m, id: m.wamid ?? m.id, to: digitos(m.to) });
+  } else {
+    console.log(`Evento da YCloud ignorado: ${ev.type ?? 'sem tipo'}`);
+  }
+}
+
 export async function processarWebhookWhatsapp(body) {
+  if (typeof body?.type === 'string' && body.type.startsWith('whatsapp.')) return processarEventoYcloud(body);
   for (const entry of body.entry ?? []) {
     for (const change of entry.changes ?? []) {
       const v = change.value ?? {};

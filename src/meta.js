@@ -78,11 +78,34 @@ const waUrl = () => `https://graph.facebook.com/${config.meta.graphVersion}/${co
 
 // Mesmo formato de mensagem nos dois provedores; muda só o endereço e a autenticação.
 function waPost(body) {
+  if (config.whatsapp.provedor === 'ycloud') return ycloudPost(body);
   if (config.whatsapp.provedor === '360dialog') {
     if (!config.whatsapp.d360Key && !dryRun()) throw new Error('Chave da 360dialog não configurada (D360_API_KEY)');
     return requisitar(`${config.whatsapp.d360Base}/messages`, { 'D360-API-KEY': config.whatsapp.d360Key }, body);
   }
   return post(waUrl(), config.meta.accessToken, body);
+}
+
+// YCloud: mesmo conteúdo de mensagem, mas com remetente explícito e números no formato +55...
+function ycloudPost(body) {
+  if (body.status === 'read') return Promise.resolve({}); // confirmação de leitura não é necessária
+  if (!config.whatsapp.ycloudKey && !dryRun()) throw new Error('Chave da YCloud não configurada (YCLOUD_API_KEY)');
+  const mais = (n) => `+${String(n).replace(/\D/g, '')}`;
+  const { messaging_product: _, ...resto } = body;
+  return requisitar(`${config.whatsapp.ycloudBase}/whatsapp/messages/sendDirectly`, { 'X-API-Key': config.whatsapp.ycloudKey }, {
+    ...resto,
+    from: mais(config.meta.whatsappNumero),
+    to: mais(body.to),
+  });
+}
+
+export async function testarYcloud() {
+  const r = await fetch(`${config.whatsapp.ycloudBase}/whatsapp/phoneNumbers`, { headers: { 'X-API-Key': config.whatsapp.ycloudKey } });
+  if (r.status === 401 || r.status === 403) throw new Error('chave da YCloud inválida');
+  if (!r.ok) throw new Error(`YCloud ${r.status}`);
+  const json = await r.json().catch(() => ({}));
+  const numeros = (json.items ?? []).map((n) => n.phoneNumber ?? n.displayPhoneNumber).filter(Boolean);
+  return numeros.length ? `conectado pela YCloud (${numeros.join(', ')})` : 'chave da YCloud válida';
 }
 
 /** Cadastra na 360dialog o endereço que recebe as mensagens (webhook). */
