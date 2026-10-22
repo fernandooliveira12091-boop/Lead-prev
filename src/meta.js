@@ -105,7 +105,13 @@ export async function testarYcloud() {
   if (!r.ok) throw new Error(`YCloud ${r.status}`);
   const json = await r.json().catch(() => ({}));
   const numeros = (json.items ?? []).map((n) => n.phoneNumber ?? n.displayPhoneNumber).filter(Boolean);
-  return numeros.length ? `conectado pela YCloud (${numeros.join(', ')})` : 'chave da YCloud válida';
+  if (!numeros.length) return 'chave da YCloud válida';
+  const digitos = (n) => String(n).replace(/\D/g, '');
+  const meu = digitos(config.meta.whatsappNumero);
+  if (!numeros.some((n) => digitos(n) === meu)) {
+    throw new Error(`WHATSAPP_NUMERO (${meu || 'vazio'}) diferente do número conectado na YCloud (${numeros.map(digitos).join(', ')}); corrija no Render`);
+  }
+  return `conectado pela YCloud (${numeros.join(', ')})`;
 }
 
 /** Cadastra na 360dialog o endereço que recebe as mensagens (webhook). */
