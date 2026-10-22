@@ -45,7 +45,11 @@ async function requisitar(url, headers, body) {
   const json = await r.json().catch(() => ({}));
   if (!r.ok) {
     const detalhe = json?.error?.message ?? json?.meta?.developer_message ?? json?.errors?.[0]?.details ?? 'erro desconhecido';
-    throw new Error(`Meta API ${r.status}: ${detalhe}`);
+    const quem = url.includes('ycloud') ? 'YCloud/Meta' : url.includes('360dialog') ? '360dialog/Meta' : 'Meta API';
+    const dica = /131005/.test(detalhe)
+      ? ' (o número não tem permissão de envio pela API: confira no Meta Business Suite se o parceiro tem acesso total à conta do WhatsApp)'
+      : '';
+    throw new Error(`${quem} ${r.status}: ${detalhe}${dica}`);
   }
   return json;
 }
