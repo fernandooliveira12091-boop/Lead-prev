@@ -10,10 +10,31 @@ const ESPERA_MS = Number(process.env.ESPERA_RESPOSTA_MS ?? 4000);
 const timers = new Map();
 const emAndamento = new Map();
 
+// Pedidos de parar ou de falar com uma pessoa são tratados por regra, antes e independentemente da IA.
+const PEDIDO_PARAR = /^\s*(sair|parar|pare|stop|cancelar|descadastrar|n[aã]o quero mais( mensagens)?)\s*[.!]*\s*$/i;
+const PEDIDO_HUMANO = /\b(atendente|humano|falar com (o |a |um |uma )?(advogad[oa]|doutor[a]?|dr\.?|dra\.?|pessoa))\b/i;
+
 export async function receberMensagem({ canal, contato, nome, texto, origemRef, origemPost }) {
   const ref = origemRef ?? extrairRef(texto);
   const lead = obterOuCriarLead({ canal, contato, nome, origemRef: ref, origemPost });
   registrarMensagem(lead.id, 'lead', texto);
+
+  if (PEDIDO_PARAR.test(texto)) {
+    atualizarLead(lead.id, { status: 'optout', ia_ativa: 0 });
+    const msg = 'Tudo bem, não enviaremos mais mensagens automáticas. Se precisar, é só escrever aqui novamente.';
+    await enviar(canal, contato, msg).catch((e) => console.error('Falha ao confirmar opt-out:', e.message));
+    registrarMensagem(lead.id, 'ia', msg);
+    return;
+  }
+  if (PEDIDO_HUMANO.test(texto) && lead.ia_ativa) {
+    atualizarLead(lead.id, { status: 'com_advogado', ia_ativa: 0 });
+    const msg = 'Certo! Vou passar sua conversa para a equipe do escritório, que continua o atendimento por aqui.';
+    await enviar(canal, contato, msg).catch((e) => console.error('Falha ao confirmar handoff:', e.message));
+    registrarMensagem(lead.id, 'ia', msg);
+    await avisarAdvogado({ ...lead, status: 'com_advogado', resumo: 'O lead pediu atendimento humano.' }, campanhaPorRef(lead.origem_ref))
+      .catch((e) => console.error('Falha ao avisar advogado:', e.message));
+    return;
+  }
 
   if (lead.status === 'optout') {
     // A própria pessoa voltou a escrever: retoma o atendimento.
@@ -98,6 +119,6 @@ async function avisarAdvogado(lead, campanha) {
     lead.resumo ?? '',
     ...fatos.map((f) => `• ${f}`),
   ].join('\n');
-  console.log(`[lead ${lead.id}] encaminhado ao advogado\n${texto}`);
+  console.log(`[lead ${lead.id}] encaminhado ao advogado`);
   if (destino) await whatsappTexto(destino, texto);
 }

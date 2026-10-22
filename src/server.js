@@ -6,6 +6,7 @@ import { processarWebhookInstagram } from './instagram.js';
 import { atualizarLead, historico, leadPorId, listarLeads, registrarMensagem } from './db.js';
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { enviar } from './atendimento.js';
+import { autenticar, painel } from './painel.js';
 
 const app = express();
 app.use(express.json({ verify: (req, _res, buf) => (req.rawBody = buf) }));
@@ -34,11 +35,8 @@ app.post('/webhook/instagram', webhook(() => config.instagram.appSecret, process
 
 // ---------- Painel administrativo ----------
 
-function admin(req, res, next) {
-  const token = req.get('authorization')?.replace(/^Bearer /, '') ?? req.query.token;
-  if (!config.adminToken || token !== config.adminToken) return res.sendStatus(401);
-  next();
-}
+const admin = autenticar;
+app.use('/painel', painel);
 
 const esc = (s) => String(s ?? '').replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' })[c]);
 
@@ -83,7 +81,7 @@ app.post('/leads/:id/mensagem', admin, async (req, res) => {
   res.sendStatus(204);
 });
 
-app.get('/', (_req, res) => res.send('lead-prev ok'));
+app.get('/', (_req, res) => res.redirect('/painel'));
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
   app.listen(config.port, () => console.log(`lead-prev ouvindo na porta ${config.port}`));

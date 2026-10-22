@@ -1,5 +1,6 @@
 import { readFileSync } from 'node:fs';
 import { config } from './config.js';
+import { postPorMidia, postPorRef } from './db.js';
 
 let cache;
 
@@ -10,13 +11,17 @@ export function carregarCampanhas() {
   return cache;
 }
 
+// Posts analisados pelo painel também funcionam como campanhas.
+const doPost = (p) => p && { ref: p.ref, tema: p.tema, titulo: p.tema, postIds: [p.media_id], palavrasChave: [] };
+
 export function campanhaPorRef(ref) {
   if (!ref) return undefined;
-  return carregarCampanhas().find((c) => c.ref.toUpperCase() === ref.toUpperCase());
+  return carregarCampanhas().find((c) => c.ref.toUpperCase() === ref.toUpperCase()) ?? doPost(postPorRef(ref));
 }
 
 export function campanhaPorPost(mediaId) {
-  return carregarCampanhas().find((c) => c.postIds?.includes(mediaId));
+  if (!mediaId) return undefined;
+  return carregarCampanhas().find((c) => c.postIds?.includes(mediaId)) ?? doPost(postPorMidia(mediaId));
 }
 
 // O link do WhatsApp leva a marca "(ref:XXX)" no texto, que identifica o post de origem.
