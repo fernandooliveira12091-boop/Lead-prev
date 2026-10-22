@@ -1,5 +1,8 @@
 # lead-prev — Gerador de leads para Direito Previdenciário
 
+> ⚠️ **Status:** o código em `src/` é um **protótipo** anterior à especificação do projeto e **não deve atender pessoas reais**.
+> A especificação e o plano por fases estão em [`docs/fase-1-descoberta.md`](docs/fase-1-descoberta.md); o esquema PostgreSQL do MVP está em [`db/migrations/`](db/migrations/).
+
 Instagram ➜ WhatsApp Business ➜ triagem por IA (Claude) ➜ advogado.
 
 ```
