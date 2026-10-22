@@ -41,7 +41,7 @@ export const config = {
 
   // WhatsApp pela Meta direto ("meta") ou por parceiro oficial com coexistência ("360dialog" ou "ycloud").
   whatsapp: {
-    provedor: ['360dialog', 'ycloud'].includes(env.WHATSAPP_PROVEDOR) ? env.WHATSAPP_PROVEDOR : 'meta',
+    provedor: ['360dialog', 'ycloud'].find((p) => p === limpo(env.WHATSAPP_PROVEDOR)?.toLowerCase()) ?? 'meta',
     ycloudKey: limpo(env.YCLOUD_API_KEY),
     ycloudBase: (env.YCLOUD_API_URL ?? 'https://api.ycloud.com/v2').replace(/\/$/, ''),
     d360Key: limpo(env.D360_API_KEY),
