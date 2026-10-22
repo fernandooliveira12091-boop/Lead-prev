@@ -88,7 +88,15 @@ app.post('/leads/:id/mensagem', admin, async (req, res) => {
 
 app.get('/', (_req, res) => res.redirect('/painel'));
 
+// Verificação de saúde usada pela hospedagem (sem dados, sem login).
+app.get('/saude', (_req, res) => res.json({ ok: true }));
+
 if (process.argv[1] === new URL(import.meta.url).pathname) {
+  if (!config.adminToken) console.warn('ATENÇÃO: ADMIN_TOKEN não definido; o painel ficará bloqueado.');
+  if (process.env.RAILWAY_ENVIRONMENT && !config.dbPath.startsWith('/data/')) {
+    console.warn('ATENÇÃO: DB_PATH fora do volume /data; os dados serão apagados a cada nova publicação.');
+  }
+  console.log(`Modo homologação: ${process.env.MODO_HOMOLOGACAO === '0' ? 'DESLIGADO' : 'ligado'}`);
   app.listen(config.port, () => console.log(`lead-prev ouvindo na porta ${config.port}`));
 }
 

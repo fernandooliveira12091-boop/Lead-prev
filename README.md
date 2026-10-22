@@ -1,7 +1,7 @@
 # lead-prev — Gerador de leads para Direito Previdenciário
 
 > ⚠️ **Status:** funcional em **modo homologação** (só envia para contas de teste). Antes de atender o público, faça a etapa 6 do passo a passo.
-> Configuração específica do escritório: [`docs/configuracao-meta.md`](docs/configuracao-meta.md).
+> Publicar o painel: [`docs/publicar.md`](docs/publicar.md). Configuração específica do escritório: [`docs/configuracao-meta.md`](docs/configuracao-meta.md).
 > Esta versão usa Node.js + SQLite; a migração para n8n + PostgreSQL da especificação está planejada.
 > A especificação e o plano por fases estão em [`docs/fase-1-descoberta.md`](docs/fase-1-descoberta.md); o esquema PostgreSQL do MVP está em [`db/migrations/`](db/migrations/).
 
