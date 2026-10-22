@@ -92,7 +92,10 @@ app.get('/', (_req, res) => res.redirect('/painel'));
 app.get('/saude', (_req, res) => res.json({ ok: true }));
 
 if (process.argv[1] === new URL(import.meta.url).pathname) {
-  if (!config.adminToken) console.warn('ATENÇÃO: ADMIN_TOKEN não definido; o painel ficará bloqueado.');
+  if (!config.adminToken) {
+    console.warn('ATENÇÃO: ADMIN_TOKEN ausente, com texto de exemplo ou com menos de 12 caracteres; o painel ficará bloqueado.');
+  }
+  if (process.env.DATABASE_URL && !config.databaseUrl) console.warn('ATENÇÃO: DATABASE_URL contém o texto de exemplo; cole a connection string da Neon.');
   if (!config.databaseUrl) {
     console.warn('ATENÇÃO: DATABASE_URL não definida; usando banco temporário em memória (os dados somem ao reiniciar).');
   }

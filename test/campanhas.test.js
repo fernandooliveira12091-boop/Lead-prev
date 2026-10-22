@@ -48,3 +48,11 @@ test('follow-up só para quem consentiu e ficou em silêncio', async () => {
   const ids = (await leadsParaFollowup(24, 2)).map((l) => l.id);
   assert.deepEqual(ids, [a.id]);
 });
+
+test('senha e banco com texto de exemplo do guia são recusados', async () => {
+  const { execFileSync } = await import('node:child_process');
+  const ler = (env) => execFileSync(process.execPath, ['-e', "import('./src/config.js').then(m => console.log(JSON.stringify([m.config.adminToken, m.config.databaseUrl])))"], { env: { ...process.env, ...env } }).toString().trim();
+  assert.equal(ler({ ADMIN_TOKEN: '<crie uma senha longa>', DATABASE_URL: '<cole a connection string da Neon>' }), '["",""]');
+  assert.equal(ler({ ADMIN_TOKEN: 'curta', DATABASE_URL: '' }), '["",""]');
+  assert.equal(ler({ ADMIN_TOKEN: 'Cafe-Rio-Lapis-Azul-2026', DATABASE_URL: 'postgresql://u:p@h/db' }), '["Cafe-Rio-Lapis-Azul-2026","postgresql://u:p@h/db"]');
+});

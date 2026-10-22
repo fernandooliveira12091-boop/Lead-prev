@@ -2,9 +2,12 @@ import 'dotenv/config';
 
 const env = process.env;
 
+// Valores copiados do exemplo do guia (ex.: "<crie uma senha longa>") não podem ser usados.
+const preenchido = (v) => (v && !/[<>]/.test(v) ? v : '');
+
 export const config = {
   port: Number(env.PORT ?? 3000),
-  adminToken: env.ADMIN_TOKEN ?? '',
+  adminToken: preenchido(env.ADMIN_TOKEN).length >= 12 ? env.ADMIN_TOKEN : '',
 
   escritorio: {
     nome: env.ESCRITORIO_NOME ?? 'Escritório de Advocacia Previdenciária',
@@ -24,7 +27,7 @@ export const config = {
   meta: {
     accessToken: env.META_ACCESS_TOKEN ?? '',
     appSecret: env.META_APP_SECRET ?? '',
-    verifyToken: env.META_VERIFY_TOKEN ?? '',
+    verifyToken: preenchido(env.META_VERIFY_TOKEN),
     graphVersion: env.META_GRAPH_VERSION ?? 'v23.0',
     phoneNumberId: env.WHATSAPP_PHONE_NUMBER_ID ?? '',
     whatsappNumero: env.WHATSAPP_NUMERO ?? '',
@@ -45,6 +48,6 @@ export const config = {
   },
 
   // Postgres (ex.: Neon). Vazio = banco embutido em memória, só para testes e simulação.
-  databaseUrl: env.DATABASE_URL ?? '',
+  databaseUrl: preenchido(env.DATABASE_URL),
   campanhasPath: env.CAMPANHAS_PATH ?? 'data/campanhas.json',
 };

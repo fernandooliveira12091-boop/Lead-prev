@@ -3,7 +3,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 
 Object.assign(process.env, {
-  ADMIN_TOKEN: 'senha-teste',
+  ADMIN_TOKEN: 'senha-teste-longa',
   ANTHROPIC_API_KEY: 'sk-teste',
   META_ACCESS_TOKEN: 'meta-teste',
   INSTAGRAM_ACCESS_TOKEN: 'ig-teste',
@@ -82,7 +82,7 @@ globalThis.fetch = async (url, init = {}) => {
 const { app } = await import('../src/server.js');
 const { comentarioPorId, listarLeads, historico } = await import('../src/db.js');
 let base, servidor;
-const AUTH = { authorization: 'Basic ' + Buffer.from('admin:senha-teste').toString('base64') };
+const AUTH = { authorization: 'Basic ' + Buffer.from('admin:senha-teste-longa').toString('base64') };
 
 before(async () => {
   servidor = app.listen(0, '127.0.0.1');
