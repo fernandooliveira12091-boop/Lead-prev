@@ -7,6 +7,7 @@ import { atualizarLead, consultar, historico, leadPorId, listarLeads, registrarM
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { enviar } from './atendimento.js';
 import { autenticar, dataHora, esc, pagina, painel } from './painel.js';
+import { paginaPrivacidade } from './privacidade.js';
 
 const app = express();
 app.use(express.json({ verify: (req, _res, buf) => (req.rawBody = buf) }));
@@ -87,6 +88,10 @@ app.post('/leads/:id/mensagem', admin, async (req, res) => {
 });
 
 app.get('/', (_req, res) => res.redirect('/painel'));
+
+// Política de privacidade e instruções de exclusão de dados (páginas públicas exigidas pela Meta).
+app.get('/privacidade', paginaPrivacidade);
+app.get('/exclusao-de-dados', (_req, res) => res.redirect('/privacidade#exclusao'));
 
 // Verificação de saúde usada pela hospedagem (sem dados, sem login).
 app.get('/saude', (_req, res) => res.json({ ok: true }));

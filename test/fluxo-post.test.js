@@ -234,3 +234,14 @@ test('login aceita espaços colados sem querer e usuário em maiúsculas', async
   const errado = { authorization: 'Basic ' + Buffer.from('admin:outra-senha-qualquer').toString('base64') };
   assert.equal((await fetch(`${base}/painel`, { headers: errado })).status, 401);
 });
+
+test('política de privacidade é pública e tem as instruções de exclusão', async () => {
+  const r = await fetch(`${base}/privacidade`);
+  assert.equal(r.status, 200);
+  const html = await r.text();
+  assert.match(html, /Política de Privacidade/);
+  assert.match(html, /id="exclusao"/);
+  assert.match(html, /wa\.me\/5562900000000/);
+  const ex = await fetch(`${base}/exclusao-de-dados`, { redirect: 'manual' });
+  assert.equal(ex.headers.get('location'), '/privacidade#exclusao');
+});
