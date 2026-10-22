@@ -44,7 +44,7 @@ async function post(url, token, body) {
   return json;
 }
 
-async function get(url, token) {
+export async function get(url, token) {
   if (!token) throw new Error('Token do Instagram não configurado (INSTAGRAM_ACCESS_TOKEN)');
   const r = await fetch(url, { headers: { Authorization: `Bearer ${token}` } });
   const json = await r.json().catch(() => ({}));

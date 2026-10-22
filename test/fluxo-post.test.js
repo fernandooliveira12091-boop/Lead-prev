@@ -51,7 +51,7 @@ globalThis.fetch = async (url, init = {}) => {
     const body = JSON.parse(init.body);
     const ultima = body.messages.at(-1).content;
     let saida;
-    if (body.system.includes('priorizar os comentários')) {
+    if (body.system?.includes('priorizar os comentários')) {
       const temp = { c1: 'quente', c2: 'morno', c3: 'frio', c4: 'quente' };
       saida = {
         comentarios: JSON.parse(ultima).map((c) => ({
@@ -244,4 +244,16 @@ test('política de privacidade é pública e tem as instruções de exclusão', 
   assert.match(html, /wa\.me\/5562900000000/);
   const ex = await fetch(`${base}/exclusao-de-dados`, { redirect: 'manual' });
   assert.equal(ex.headers.get('location'), '/privacidade#exclusao');
+});
+
+test('tela de conexões mostra o que está configurado e testa a IA', async () => {
+  const pagina = await (await fetch(`${base}/painel/status`, { headers: AUTH })).text();
+  assert.match(pagina, /Conexões/);
+  assert.match(pagina, /webhook\/whatsapp/);
+  assert.ok(!pagina.includes('sk-teste'), 'não mostra a chave');
+  const antes = chamadasClaude;
+  const r = await fetch(`${base}/painel/status/testar`, form({}));
+  const html = await r.text();
+  assert.equal(chamadasClaude, antes + 1);
+  assert.match(html, /IA \(Claude\)<\/b><\/td><td>respondeu/);
 });

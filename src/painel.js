@@ -1,6 +1,7 @@
 import express from 'express';
 import { config } from './config.js';
 import { comentarioPorId, comentariosDoPost, listarPosts, postPorMidia } from './db.js';
+import { configuracao, testarConexoes } from './status.js';
 import { analisarPost, enviarParaComentario, ErroUsuario, ignorarComentario, prazoRespostaPrivada } from './posts.js';
 
 export const painel = express.Router();
@@ -67,7 +68,7 @@ export function pagina(titulo, corpo) {
   blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid var(--borda);white-space:pre-wrap}
 </style>
 <main>
-<p class="muted"><a href="/painel">Posts</a> · <a href="/leads">Leads</a></p>
+<p class="muted"><a href="/painel">Posts</a> · <a href="/leads">Leads</a> · <a href="/painel/status">Conexões</a></p>
 ${homologacao() ? '<div class="card aviso"><b>Modo homologação ligado.</b> Mensagens só saem para as contas de teste (INSTAGRAM_TESTE / WHATSAPP_TESTE).</div>' : ''}
 ${corpo}
 </main></html>`;
@@ -192,3 +193,33 @@ painel.post('/comentarios/:id/enviar', (req, res) =>
 );
 
 painel.post('/comentarios/:id/ignorar', (req, res) => decidir(req, res, () => ignorarComentario(req.params.id, req.usuario)));
+
+// ---------- Conexões ----------
+
+function urlBase(req) {
+  return `${req.protocol === 'http' && req.get('x-forwarded-proto') === 'https' ? 'https' : req.protocol}://${req.get('host')}`;
+}
+
+function telaStatus(req, resultados) {
+  const base = urlBase(req);
+  const linhas = (resultados ?? configuracao().map((c) => ({ nome: c.nome, ok: c.ok, detalhe: c.ok ? 'configurado' : `falta ${c.falta}` })))
+    .map((r) => `<tr><td>${r.ok ? '✅' : '⚠️'}</td><td><b>${esc(r.nome)}</b></td><td>${esc(r.detalhe)}</td></tr>`)
+    .join('');
+  return pagina(
+    'Conexões',
+    `<h1>Conexões</h1>
+    ${resultados ? '<div class="card sucesso">Teste concluído.</div>' : ''}
+    <div class="card"><table><tr><th></th><th>Serviço</th><th>Situação</th></tr>${linhas}</table>
+      <form method="post" action="/painel/status/testar"><p><button>Testar conexões agora</button></p></form>
+      <p class="muted">O teste da IA faz uma chamada mínima ao Claude (custo de frações de centavo).</p></div>
+    <div class="card"><b>Endereços para cadastrar na Meta</b>
+      <p class="muted">Política de privacidade</p><blockquote>${esc(base)}/privacidade</blockquote>
+      <p class="muted">Exclusão de dados</p><blockquote>${esc(base)}/exclusao-de-dados</blockquote>
+      <p class="muted">Webhook do Instagram</p><blockquote>${esc(base)}/webhook/instagram</blockquote>
+      <p class="muted">Webhook do WhatsApp</p><blockquote>${esc(base)}/webhook/whatsapp</blockquote>
+      <p class="muted">Token de verificação: o valor de META_VERIFY_TOKEN no Render.</p></div>`,
+  );
+}
+
+painel.get('/status', (req, res) => res.send(telaStatus(req)));
+painel.post('/status/testar', async (req, res) => res.send(telaStatus(req, await testarConexoes())));
