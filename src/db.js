@@ -265,3 +265,13 @@ export async function atualizarComentario(id, campos) {
   const { set, valores } = setDinamico(campos);
   await linhas(`UPDATE comentarios SET ${set} WHERE id = $1`, [id, ...valores]);
 }
+
+export function resultadosPorOrigem() {
+  return linhas(
+    `SELECT COALESCE(origem_ref, 'SEM CÓDIGO') AS ref,
+       count(*)::int AS leads,
+       count(*) FILTER (WHERE status IN ('qualificado', 'com_advogado', 'contratado'))::int AS qualificados,
+       count(*) FILTER (WHERE status = 'contratado')::int AS contratados
+     FROM leads GROUP BY 1 ORDER BY 2 DESC`,
+  );
+}

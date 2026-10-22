@@ -1,6 +1,8 @@
 import express from 'express';
 import { config } from './config.js';
-import { comentarioPorId, comentariosDoPost, listarPosts, postPorMidia } from './db.js';
+import { comentarioPorId, comentariosDoPost, listarPosts, postPorMidia, resultadosPorOrigem } from './db.js';
+import { Analise, analisarConversa, salvarLeadManual } from './copiloto.js';
+import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { configuracao, testarConexoes } from './status.js';
 import {
   analisarPost,
@@ -65,24 +67,24 @@ export function pagina(titulo, corpo) {
   main{max-width:960px;margin:0 auto;padding:16px}a{color:var(--azul)}
   .card{background:var(--card);border:1px solid var(--borda);border-radius:10px;padding:14px;margin:12px 0}
   .aviso{border-left:4px solid var(--morno)}.erro{border-left:4px solid var(--quente)}.sucesso{border-left:4px solid var(--ok)}
-  input,textarea{width:100%;padding:8px;border:1px solid var(--borda);border-radius:6px;background:var(--bg);color:var(--txt);font:inherit}
-  textarea{min-height:90px}label{display:block;margin:8px 0 4px;color:var(--muted);font-size:13px}
+  input,textarea,select{width:100%;padding:8px;border:1px solid var(--borda);border-radius:6px;background:var(--bg);color:var(--txt);font:inherit}
+  textarea{min-height:90px}form.linha select{width:auto}label{display:block;margin:8px 0 4px;color:var(--muted);font-size:13px}
   button{padding:8px 14px;border:0;border-radius:6px;font:inherit;cursor:pointer;background:var(--azul);color:#fff}
   button.sec{background:transparent;color:var(--muted);border:1px solid var(--borda)}
   .linha{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted);font-size:13px}
   .tag{display:inline-block;padding:2px 8px;border-radius:99px;color:#fff;font-size:12px;font-weight:600}
-  .quente,.com_advogado,.qualificado{background:var(--quente)}.morno,.em_triagem,.novo{background:var(--morno)}.frio,.fora_do_escopo,.descartado,.optout{background:var(--frio)}
+  .quente,.com_advogado,.qualificado{background:var(--quente)}.contratado{background:var(--ok)}.nao_prosseguiu{background:var(--frio)}.morno,.em_triagem,.novo{background:var(--morno)}.frio,.fora_do_escopo,.descartado,.optout{background:var(--frio)}
   table{width:100%;border-collapse:collapse}td,th{padding:8px;border-bottom:1px solid var(--borda);text-align:left}
   blockquote{margin:8px 0;padding:8px 12px;border-left:3px solid var(--borda);white-space:pre-wrap}
 </style>
 <main>
-<p class="muted"><a href="/painel">Posts</a> · <a href="/leads">Leads</a> · <a href="/painel/status">Conexões</a></p>
+<p class="muted"><a href="/painel">Posts</a> · <a href="/painel/atender">Atender</a> · <a href="/leads">Leads</a> · <a href="/painel/links">Links e resultados</a> · <a href="/painel/status">Conexões</a></p>
 ${homologacao() ? '<div class="card aviso"><b>Modo homologação ligado.</b> Mensagens só saem para as contas de teste (INSTAGRAM_TESTE / WHATSAPP_TESTE).</div>' : ''}
 ${corpo}
 </main></html>`;
 }
 
-function alerta(req) {
+export function alerta(req) {
   if (req.query.erro) return `<div class="card erro">${esc(req.query.erro)}</div>`;
   if (req.query.ok) return `<div class="card sucesso">${esc(req.query.ok)}</div>`;
   return '';
@@ -239,4 +241,124 @@ painel.post('/posts/:mediaId/remover', async (req, res) => {
   const post = await postPorMidia(req.params.mediaId);
   if (post) await removerPost(post.media_id);
   res.redirect(303, `/painel?ok=${encodeURIComponent(post ? `Post ${post.ref} removido do painel; o código está livre de novo.` : 'Post não encontrado.')}`);
+});
+
+// ---------- Modo copiloto: colar a conversa e receber a triagem ----------
+
+async function opcoesCodigo(selecionado) {
+  const posts = await listarPosts();
+  const codigos = [...new Map([...carregarCampanhas(), ...posts].map((c) => [c.ref, c.titulo ?? c.tema])).entries()];
+  return `<option value="">(sem código)</option>${codigos
+    .map(([ref, titulo]) => `<option value="${esc(ref)}"${ref === selecionado ? ' selected' : ''}>${esc(ref)} · ${esc(titulo)}</option>`)
+    .join('')}`;
+}
+
+const copiar = (rotulo = 'Copiar') =>
+  `<button type="button" class="sec" onclick="navigator.clipboard.writeText(this.previousElementSibling.value ?? this.previousElementSibling.textContent);this.textContent='Copiado!'">${rotulo}</button>`;
+
+painel.get('/atender', async (req, res) => {
+  res.send(
+    pagina(
+      'Atender',
+      `<h1>Atender uma conversa</h1>${alerta(req)}
+      <form class="card" method="post" action="/painel/atender">
+        <label>Cole aqui a conversa do WhatsApp/Direct ou o comentário (pode ser só o trecho principal)</label>
+        <textarea name="texto" required style="min-height:220px" placeholder="Ex.: Boa tarde, trabalhei na roça com meu pai desde os 12 anos e o INSS negou minha aposentadoria..."></textarea>
+        <p><button>Analisar com a IA</button></p>
+        <p class="muted">Nada é enviado à pessoa. O texto colado não fica guardado; só o resumo, se você salvar o lead.</p>
+      </form>`,
+    ),
+  );
+});
+
+function lista(itens) {
+  return itens.length ? `<ul>${itens.map((i) => `<li>${esc(i)}</li>`).join('')}</ul>` : '<p class="muted">Nenhum.</p>';
+}
+
+painel.post('/atender', async (req, res) => {
+  const texto = String(req.body?.texto ?? '').trim();
+  if (!texto) return res.redirect(303, '/painel/atender');
+  let a;
+  try {
+    a = await analisarConversa(texto);
+  } catch (e) {
+    console.error('Erro no copiloto:', e.status ?? '', e.message);
+    return res.redirect(303, `/painel/atender?erro=${encodeURIComponent('Não foi possível analisar agora: ' + (e.status === 401 ? 'chave da IA inválida (veja Conexões).' : e.message))}`);
+  }
+  const { codigo, ...analise } = a;
+  res.send(
+    pagina(
+      'Triagem',
+      `<h1>Triagem</h1>
+      <div class="card">
+        <div class="linha"><span class="tag ${a.necessidade_revisao_humana ? 'quente' : 'morno'}">${a.necessidade_revisao_humana ? 'revisão do advogado' : 'continuar triagem'}</span>
+          <b>${esc(a.beneficio_interesse.replaceAll('_', ' '))}</b>${codigo ? `<span class="muted">código detectado: ${esc(codigo)}</span>` : ''}</div>
+        <blockquote>${esc(a.situacao_informada)}</blockquote>
+        <p class="muted">${esc(a.motivo_encaminhamento)}</p>
+        <table>
+          <tr><td>Período rural</td><td>${esc(a.periodo_atividade_rural)}</td></tr>
+          <tr><td>Categoria</td><td>${esc(a.categoria_previdenciaria)}</td></tr>
+          <tr><td>Requerimento no INSS</td><td>${esc(a.requerimento_inss.replaceAll('_', ' '))}</td></tr>
+          <tr><td>Documentos mencionados</td><td>${esc(a.documentos_mencionados.join('; ') || '—')}</td></tr>
+        </table>
+        <p><b>Informações pendentes</b></p>${lista(a.informacoes_pendentes)}
+        <p><b>Contradições</b></p>${lista(a.contradicoes)}
+      </div>
+      <div class="card"><b>Resposta sugerida</b> <span class="muted">(revise antes de enviar)</span>
+        <textarea>${esc(a.resposta_sugerida)}</textarea>${copiar('Copiar resposta')}
+      </div>
+      <form class="card" method="post" action="/painel/leads/novo"><b>Salvar como lead</b>
+        <div class="linha">
+          <div style="flex:2;min-width:200px"><label>WhatsApp (com DDD) ou @Instagram</label><input name="contato" required placeholder="61 99999-9999 ou @perfil"></div>
+          <div style="flex:2;min-width:200px"><label>Nome</label><input name="nome" value="${esc(a.nome ?? '')}"></div>
+          <div style="flex:2;min-width:200px"><label>Post de origem</label><select name="codigo" style="width:100%;padding:8px">${await opcoesCodigo(codigo)}</select></div>
+        </div>
+        <input type="hidden" name="analise" value="${esc(JSON.stringify(analise))}">
+        <p><button>Salvar lead</button> <a href="/painel/atender">Analisar outra conversa</a></p>
+      </form>`,
+    ),
+  );
+});
+
+painel.post('/leads/novo', async (req, res) => {
+  try {
+    let analise = null;
+    if (req.body?.analise) {
+      const r = Analise.safeParse(JSON.parse(req.body.analise));
+      if (r.success) analise = r.data;
+    }
+    const lead = await salvarLeadManual({ contato: req.body?.contato, nome: req.body?.nome, codigo: req.body?.codigo, analise });
+    res.redirect(303, `/leads?ok=${encodeURIComponent(`Lead salvo (#${lead.id}).`)}`);
+  } catch (e) {
+    res.redirect(303, `/painel/atender?erro=${encodeURIComponent(e.message)}`);
+  }
+});
+
+// ---------- Links rastreados e resultados por post ----------
+
+painel.get('/links', async (req, res) => {
+  const posts = await listarPosts();
+  const fontes = [...carregarCampanhas().map((c) => ({ ref: c.ref, titulo: c.titulo, mensagemInicial: c.mensagemInicial })),
+    ...posts.map((p) => ({ ref: p.ref, titulo: p.tema, mensagemInicial: `Olá! Vi a publicação sobre ${p.tema} e gostaria de conversar.` }))];
+  const unicos = [...new Map(fontes.map((f) => [f.ref, f])).values()];
+  const resultados = Object.fromEntries((await resultadosPorOrigem()).map((r) => [r.ref, r]));
+  const linhasLinks = unicos
+    .map((f) => {
+      const r = resultados[f.ref] ?? { leads: 0, qualificados: 0, contratados: 0 };
+      return `<tr><td><b>${esc(f.ref)}</b><br><span class="muted">${esc(f.titulo)}</span></td>
+        <td><input readonly value="${esc(linkWhatsapp(f))}">${copiar()}</td>
+        <td>${r.leads}</td><td>${r.qualificados}</td><td>${r.contratados}</td></tr>`;
+    })
+    .join('');
+  const semCodigo = resultados['SEM CÓDIGO'];
+  res.send(
+    pagina(
+      'Links e resultados',
+      `<h1>Links e resultados</h1>
+      <div class="card"><p class="muted">Coloque o link de cada post na legenda, nos stories ou na bio. Quem clica cai no seu WhatsApp
+        com o código do post na mensagem, e você sabe de onde a pessoa veio. Para novos códigos, cadastre o post na tela Posts.</p>
+        <table><tr><th>Post</th><th>Link do WhatsApp</th><th>Leads</th><th>Qualificados</th><th>Contratos</th></tr>${linhasLinks}</table>
+        ${semCodigo ? `<p class="muted">Leads sem código de origem: ${semCodigo.leads}.</p>` : ''}</div>`,
+    ),
+  );
 });

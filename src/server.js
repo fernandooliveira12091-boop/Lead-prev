@@ -6,7 +6,7 @@ import { processarWebhookInstagram } from './instagram.js';
 import { atualizarLead, consultar, historico, leadPorId, listarLeads, registrarMensagem } from './db.js';
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { enviar } from './atendimento.js';
-import { autenticar, dataHora, esc, pagina, painel } from './painel.js';
+import { alerta, autenticar, dataHora, esc, pagina, painel } from './painel.js';
 import { paginaPrivacidade } from './privacidade.js';
 import { agendarManutencao } from './manutencao.js';
 
@@ -42,7 +42,7 @@ app.use('/painel', painel);
 
 const STATUS = {
   novo: 'novo', em_triagem: 'em triagem', qualificado: 'qualificado', com_advogado: 'com o advogado',
-  descartado: 'descartado', optout: 'pediu para sair',
+  contratado: 'contratado', nao_prosseguiu: 'não prosseguiu', descartado: 'descartado', optout: 'pediu para sair',
 };
 
 app.get('/leads', admin, async (req, res) => {
@@ -60,10 +60,18 @@ app.get('/leads', admin, async (req, res) => {
           <span class="muted">${esc(l.area ?? 'área indefinida')} · post ${esc(l.origem_ref ?? '—')} · ${l.ia_ativa ? 'IA atendendo' : 'atendimento humano'} · ${esc(dataHora(l.criado_em))}</span></div>
         ${l.resumo ? `<blockquote>${esc(l.resumo)}</blockquote>` : ''}
         ${fatos.length ? `<ul>${fatos.map((f) => `<li>${esc(f)}</li>`).join('')}</ul>` : ''}
-        <p class="muted">${contato}</p></div>`;
+        <form class="linha" method="post" action="/leads/${l.id}/status"><span class="muted">${contato} · Etapa:</span>
+          <select name="status">${Object.entries(STATUS).map(([v, t]) => `<option value="${v}"${v === l.status ? ' selected' : ''}>${t}</option>`).join('')}</select>
+          <button class="sec">Atualizar</button></form></div>`;
     })
     .join('');
-  res.send(pagina('Leads', `<h1>Leads (${leads.length})</h1>${cartoes || '<p class="muted">Nenhum lead ainda.</p>'}`));
+  res.send(pagina('Leads', `<h1>Leads (${leads.length})</h1>${alerta(req)}${cartoes || '<p class="muted">Nenhum lead ainda.</p>'}`));
+});
+
+app.post('/leads/:id/status', admin, express.urlencoded({ extended: false }), async (req, res) => {
+  if (!(req.body?.status in STATUS)) return res.sendStatus(400);
+  await atualizarLead(Number(req.params.id), { status: req.body.status });
+  res.redirect(303, '/leads?ok=' + encodeURIComponent('Etapa atualizada.'));
 });
 
 app.get('/leads/:id/conversa', admin, async (req, res) => res.json(await historico(Number(req.params.id), 500)));

@@ -51,7 +51,15 @@ globalThis.fetch = async (url, init = {}) => {
     const body = JSON.parse(init.body);
     const ultima = body.messages.at(-1).content;
     let saida;
-    if (body.system?.includes('priorizar os comentários')) {
+    if (body.system?.includes('O advogado colou abaixo')) {
+      saida = {
+        nome: 'José', beneficio_interesse: 'aposentadoria_rural', situacao_informada: 'Lavrador, 61 anos, pedido negado em 2025.',
+        periodo_atividade_rural: '1980 a 2024 (informado)', categoria_previdenciaria: 'economia familiar', documentos_mencionados: ['notas de produtor'],
+        requerimento_inss: 'negado', informacoes_pendentes: ['cidade/UF'], contradicoes: [], necessidade_revisao_humana: true,
+        motivo_encaminhamento: 'Negativa do INSS a analisar.', proxima_pergunta: 'Em qual cidade o senhor mora?',
+        resposta_sugerida: 'Obrigado, José! Em qual cidade o senhor mora?',
+      };
+    } else if (body.system?.includes('priorizar os comentários')) {
       const temp = { c1: 'quente', c2: 'morno', c3: 'frio', c4: 'quente' };
       saida = {
         comentarios: JSON.parse(ultima).map((c) => ({
@@ -267,4 +275,36 @@ test('mostra quantos comentários o Instagram informa e permite remover o post d
   assert.equal(await comentarioPorId('c1'), undefined);
   const lead = (await listarLeads()).find((l) => l.contato === 'ig-maria');
   assert.ok(lead, 'leads continuam salvos');
+});
+
+test('copiloto: analisa conversa colada, sugere resposta e salva o lead com o código do post', async () => {
+  const r = await fetch(`${base}/painel/atender`, form({ texto: 'Olá (ref:AR001) trabalhei na roça e o INSS negou' }));
+  const html = await r.text();
+  assert.match(html, /revisão do advogado/);
+  assert.match(html, /código detectado: AR001/);
+  assert.match(html, /Em qual cidade o senhor mora\?/);
+  assert.ok(!html.includes('trabalhei na roça e o INSS negou'), 'o texto colado não é reexibido nem guardado');
+  const analise = /name="analise" value="([^"]+)"/.exec(html)[1].replace(/&quot;/g, '"').replace(/&amp;/g, '&').replace(/&#39;/g, "'");
+  const s = await fetch(`${base}/painel/leads/novo`, form({ contato: '(61) 98888-7777', nome: 'José', codigo: 'AR001', analise }));
+  assert.match(decodeURIComponent(s.headers.get('location')), /Lead salvo/);
+  const lead = (await listarLeads()).find((l) => l.contato === '5561988887777');
+  assert.equal(lead.origem_ref, 'AR001');
+  assert.equal(lead.status, 'qualificado');
+  assert.equal(lead.ia_ativa, 0);
+  assert.match(lead.dados_json, /Pendente: cidade\/UF/);
+});
+
+test('etapa do lead pode ser atualizada e aparece nos resultados por post', async () => {
+  const lead = (await listarLeads()).find((l) => l.contato === '5561988887777');
+  const r = await fetch(`${base}/leads/${lead.id}/status`, form({ status: 'contratado' }));
+  assert.equal(r.status, 303);
+  const links = await (await fetch(`${base}/painel/links`, { headers: AUTH })).text();
+  assert.match(links, /wa\.me\/5562900000000\?text=/);
+  assert.match(links, /<b>AR001<\/b>[\s\S]*?<td>\d+<\/td><td>\d+<\/td><td>1<\/td>/);
+  assert.equal((await fetch(`${base}/leads/${lead.id}/status`, form({ status: 'inventado' }))).status, 400);
+});
+
+test('contato inválido no cadastro manual mostra erro claro', async () => {
+  const r = await fetch(`${base}/painel/leads/novo`, form({ contato: '123' }));
+  assert.match(decodeURIComponent(r.headers.get('location')), /WhatsApp com DDD/);
 });
