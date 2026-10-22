@@ -4,7 +4,7 @@ import { comentarioPorId, comentariosDoPost, listarPosts, postPorMidia, resultad
 import { Analise, analisarConversa, salvarLeadManual } from './copiloto.js';
 import { carregarCampanhas, linkWhatsapp } from './campanhas.js';
 import { configuracao, testarConexoes } from './status.js';
-import { registrarWebhook360 } from './meta.js';
+import { configurarWebhookYcloud, registrarWebhook360, situacaoWebhookYcloud } from './meta.js';
 import {
   analisarPost,
   enviarParaComentario,
@@ -214,6 +214,21 @@ function urlBase(req) {
   return `${req.protocol === 'http' && req.get('x-forwarded-proto') === 'https' ? 'https' : req.protocol}://${req.get('host')}`;
 }
 
+function urlWebhookParceiro(req) {
+  return `${urlBase(req)}/webhook/whatsapp?chave=${encodeURIComponent(config.whatsapp.webhookChave)}`;
+}
+
+// Na YCloud, o teste de conexões também confere se o webhook está cadastrado com o endereço e os eventos certos.
+async function testarWebhookYcloud(req) {
+  if (config.whatsapp.provedor !== 'ycloud' || !config.whatsapp.ycloudKey || !config.whatsapp.webhookChave) return [];
+  try {
+    const { ok, texto } = await situacaoWebhookYcloud(urlWebhookParceiro(req));
+    return [{ nome: 'Webhook do WhatsApp (YCloud)', ok, detalhe: texto }];
+  } catch (e) {
+    return [{ nome: 'Webhook do WhatsApp (YCloud)', ok: false, detalhe: e.message.slice(0, 200) }];
+  }
+}
+
 function telaStatus(req, resultados) {
   const base = urlBase(req);
   const linhas = (resultados ?? configuracao().map((c) => ({ nome: c.nome, ok: c.ok, detalhe: c.ok ? 'configurado' : `falta ${c.falta}` })))
@@ -231,10 +246,12 @@ function telaStatus(req, resultados) {
       <p class="muted">Exclusão de dados</p><blockquote>${esc(base)}/exclusao-de-dados</blockquote>
       <p class="muted">Webhook do Instagram</p><blockquote>${esc(base)}/webhook/instagram</blockquote>
       ${config.whatsapp.provedor === 'ycloud'
-        ? `<p class="muted">Webhook do WhatsApp (cadastre na YCloud em Developers ➜ Webhooks)</p>
+        ? `<p class="muted">Webhook do WhatsApp (YCloud)</p>
            ${config.whatsapp.webhookChave
-             ? `<blockquote>${esc(base)}/webhook/whatsapp?chave=${esc(config.whatsapp.webhookChave)}</blockquote>`
-             : '<p>Defina WHATSAPP_WEBHOOK_CHAVE (16+ caracteres) no Render para gerar o endereço.</p>'}`
+             ? `<form method="post" action="/painel/status/webhookycloud"><button class="sec">Cadastrar ou corrigir o webhook na YCloud</button></form>
+                <p class="muted">O sistema cadastra sozinho, com a chave da API. Se preferir fazer à mão (Developers ➜ Webhooks):</p>
+                <blockquote>${esc(urlWebhookParceiro(req))}</blockquote>`
+             : '<p>Defina WHATSAPP_WEBHOOK_CHAVE (16+ caracteres) no Render para liberar o cadastro do webhook.</p>'}`
         : config.whatsapp.provedor === '360dialog'
         ? `<p class="muted">WhatsApp pela 360dialog (coexistência)</p>
            ${config.whatsapp.webhookChave
@@ -246,7 +263,16 @@ function telaStatus(req, resultados) {
 }
 
 painel.get('/status', (req, res) => res.send(telaStatus(req)));
-painel.post('/status/testar', async (req, res) => res.send(telaStatus(req, await testarConexoes())));
+painel.post('/status/testar', async (req, res) => res.send(telaStatus(req, [...await testarConexoes(), ...await testarWebhookYcloud(req)])));
+
+painel.post('/status/webhookycloud', async (req, res) => {
+  try {
+    await configurarWebhookYcloud(urlWebhookParceiro(req));
+    res.send(telaStatus(req, await testarWebhookYcloud(req)));
+  } catch (e) {
+    res.send(telaStatus(req, [{ nome: 'Webhook do WhatsApp (YCloud)', ok: false, detalhe: e.message.slice(0, 200) }]));
+  }
+});
 
 painel.post('/posts/:mediaId/remover', async (req, res) => {
   const post = await postPorMidia(req.params.mediaId);
@@ -376,7 +402,7 @@ painel.get('/links', async (req, res) => {
 
 painel.post('/status/webhook360', async (req, res) => {
   try {
-    await registrarWebhook360(`${urlBase(req)}/webhook/whatsapp?chave=${encodeURIComponent(config.whatsapp.webhookChave)}`);
+    await registrarWebhook360(urlWebhookParceiro(req));
     res.send(telaStatus(req, [{ nome: 'Webhook do WhatsApp (360dialog)', ok: true, detalhe: 'cadastrado' }]));
   } catch (e) {
     res.send(telaStatus(req, [{ nome: 'Webhook do WhatsApp (360dialog)', ok: false, detalhe: e.message.slice(0, 200) }]));

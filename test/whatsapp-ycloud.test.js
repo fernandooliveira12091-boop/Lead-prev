@@ -15,6 +15,7 @@ Object.assign(process.env, {
 });
 
 const chamadas = [];
+const webhooks = [{ id: 'errado', url: 'https://whatsapp.inbound_message.received', enabledEvents: [], status: 'active' }];
 const fetchReal = globalThis.fetch;
 globalThis.fetch = async (url, init = {}) => {
   const u = String(url);
@@ -29,6 +30,12 @@ globalThis.fetch = async (url, init = {}) => {
     return new Response(JSON.stringify({ id: 'm', type: 'message', role: 'assistant', model: 'x', content: [{ type: 'text', text: JSON.stringify(saida) }], stop_reason: 'end_turn', usage: { input_tokens: 1, output_tokens: 1 } }), { headers: { 'content-type': 'application/json' } });
   }
   if (u.endsWith('/whatsapp/phoneNumbers')) return new Response(JSON.stringify({ items: [{ phoneNumber: '+556191658755' }] }));
+  if (u.includes('/webhookEndpoints')) {
+    const corpo = init.body ? JSON.parse(init.body) : {};
+    if (init.method === 'POST') webhooks.push({ id: `wh${webhooks.length + 1}`, ...corpo });
+    if (init.method === 'PATCH') Object.assign(webhooks.find((w) => u.endsWith(`/${w.id}`)), corpo);
+    return new Response(JSON.stringify(init.method === 'GET' || !init.method ? { items: webhooks } : { ok: true }));
+  }
   return new Response(JSON.stringify({ id: 'ok' }), { headers: { 'content-type': 'application/json' } });
 };
 
@@ -86,4 +93,23 @@ test('tela Conexões testa a chave da YCloud e mostra o endereço do webhook', a
   assert.match(pagina, /webhook\/whatsapp\?chave=chave-do-webhook-com-mais-de-16/);
   const teste = await (await fetch(`${base}/painel/status/testar`, { method: 'POST', headers: AUTH })).text();
   assert.match(teste, /conectado pela YCloud/);
+});
+
+test('botão da tela Conexões cadastra e depois corrige o webhook na YCloud', async () => {
+  const AUTH = { authorization: 'Basic ' + Buffer.from('admin:senha-teste-longa').toString('base64') };
+  const testar = async () => (await fetch(`${base}/painel/status/testar`, { method: 'POST', headers: AUTH })).text();
+  assert.match(await testar(), /webhook ainda não cadastrado na YCloud/);
+
+  assert.match(await (await fetch(`${base}/painel/status/webhookycloud`, { method: 'POST', headers: AUTH })).text(), /webhook cadastrado e ativo/);
+  const nossos = webhooks.filter((w) => w.id !== 'errado');
+  assert.equal(nossos.length, 1);
+  assert.equal(new URL(nossos[0].url).searchParams.get('chave'), CHAVE);
+  assert.deepEqual(nossos[0].enabledEvents, ['whatsapp.inbound_message.received', 'whatsapp.smb.message.echoes']);
+
+  // Alguém desativa e troca o endereço à mão: o botão corrige o mesmo cadastro, sem duplicar.
+  Object.assign(nossos[0], { status: 'disabled', url: nossos[0].url.replace(CHAVE, 'outra-chave-qualquer-123') });
+  assert.match(await testar(), /endereço ou chave diferente/);
+  await fetch(`${base}/painel/status/webhookycloud`, { method: 'POST', headers: AUTH });
+  assert.equal(webhooks.filter((w) => w.id !== 'errado').length, 1);
+  assert.match(await testar(), /webhook cadastrado e ativo/);
 });

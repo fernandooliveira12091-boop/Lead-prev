@@ -113,6 +113,54 @@ export async function testarYcloud() {
   return `conectado pela YCloud (${numeros.join(', ')})`;
 }
 
+// ---------- Webhook na YCloud (cadastrado pelo próprio sistema, com a chave da API) ----------
+
+export const EVENTOS_YCLOUD = ['whatsapp.inbound_message.received', 'whatsapp.smb.message.echoes'];
+
+async function ycloud(metodo, caminho, body) {
+  if (!config.whatsapp.ycloudKey) throw new Error('Chave da YCloud não configurada (YCLOUD_API_KEY)');
+  const r = await fetch(`${config.whatsapp.ycloudBase}${caminho}`, {
+    method: metodo,
+    headers: { 'X-API-Key': config.whatsapp.ycloudKey, ...(body ? { 'Content-Type': 'application/json' } : {}) },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const json = await r.json().catch(() => ({}));
+  if (r.status === 401 || r.status === 403) throw new Error('chave da YCloud inválida');
+  if (!r.ok) throw new Error(`YCloud ${r.status}: ${json?.error?.message ?? json?.message ?? 'erro desconhecido'}`);
+  return json;
+}
+
+const caminhoWebhook = (url) => { try { return new URL(url).pathname; } catch { return ''; } };
+
+/** Webhooks cadastrados na YCloud que apontam para este sistema (pelo caminho /webhook/whatsapp). */
+export async function webhooksYcloud() {
+  const json = await ycloud('GET', '/webhookEndpoints?limit=100');
+  return (json.items ?? []).filter((w) => caminhoWebhook(w.url) === '/webhook/whatsapp');
+}
+
+/** Situação do webhook na YCloud, em texto, sem mostrar a chave. */
+export async function situacaoWebhookYcloud(urlEsperada) {
+  const lista = await webhooksYcloud();
+  const certo = lista.find((w) => w.url === urlEsperada);
+  if (!certo) {
+    return lista.length
+      ? { ok: false, texto: 'há webhook apontando para o sistema, mas com endereço ou chave diferente (use o botão abaixo)' }
+      : { ok: false, texto: 'webhook ainda não cadastrado na YCloud (use o botão abaixo)' };
+  }
+  const faltam = EVENTOS_YCLOUD.filter((e) => !(certo.enabledEvents ?? []).includes(e));
+  if (certo.status && certo.status !== 'active') return { ok: false, texto: `webhook cadastrado, mas ${certo.status} (use o botão abaixo)` };
+  if (faltam.length) return { ok: false, texto: `webhook cadastrado sem os eventos ${faltam.join(', ')} (use o botão abaixo)` };
+  return { ok: true, texto: 'webhook cadastrado e ativo' };
+}
+
+/** Cria ou corrige o webhook na YCloud: um só, com a URL e os eventos certos, ativo. */
+export async function configurarWebhookYcloud(url) {
+  const corpo = { url, enabledEvents: EVENTOS_YCLOUD, status: 'active', description: 'lead-prev (triagem automática)' };
+  const [existente] = await webhooksYcloud();
+  if (existente) await ycloud('PATCH', `/webhookEndpoints/${encodeURIComponent(existente.id)}`, corpo);
+  else await ycloud('POST', '/webhookEndpoints', corpo);
+}
+
 /** Cadastra na 360dialog o endereço que recebe as mensagens (webhook). */
 export function registrarWebhook360(url) {
   if (!config.whatsapp.d360Key) throw new Error('Chave da 360dialog não configurada (D360_API_KEY)');
